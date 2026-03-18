@@ -362,18 +362,36 @@ def desactivar(id):
     return redirect(url_for('index'))
 
 
+def base_context():
+    """Variables de paginación/filtros requeridas por el template en todas las rutas."""
+    conn = get_db()
+    total = conn.execute('SELECT COUNT(*) FROM valuaciones WHERE activa = 1').fetchone()[0]
+    valuaciones = conn.execute('SELECT * FROM valuaciones WHERE activa = 1 ORDER BY id DESC LIMIT ? OFFSET ?',
+                               [PER_PAGE, 0]).fetchall()
+    usuarios_db = conn.execute('SELECT username FROM usuarios ORDER BY username').fetchall()
+    conn.close()
+    total_pages = max(1, (total + PER_PAGE - 1) // PER_PAGE)
+    return {
+        'valuaciones': valuaciones,
+        'today': datetime.now().strftime('%Y-%m-%d'),
+        'usuario': session['usuario'],
+        'q': '', 'desde': '', 'hasta': '', 'filtro_usuario': '',
+        'page': 1, 'total_pages': total_pages, 'total': total,
+        'usuarios_lista': [u['username'] for u in usuarios_db],
+    }
+
+
 @app.route('/ver/<int:id>')
 @login_required
 def ver(id):
     conn = get_db()
     valuacion = conn.execute('SELECT * FROM valuaciones WHERE id = ?', (id,)).fetchone()
-    valuaciones = conn.execute('SELECT * FROM valuaciones WHERE activa = 1 ORDER BY id DESC').fetchall()
     conn.close()
     if valuacion is None:
         return redirect(url_for('index'))
-    today = datetime.now().strftime('%Y-%m-%d')
-    return render_template('index.html', valuaciones=valuaciones, today=today,
-                           viendo=valuacion, usuario=session['usuario'])
+    ctx = base_context()
+    ctx['viendo'] = valuacion
+    return render_template('index.html', **ctx)
 
 
 @app.route('/editar/<int:id>')
@@ -381,13 +399,12 @@ def ver(id):
 def editar(id):
     conn = get_db()
     valuacion = conn.execute('SELECT * FROM valuaciones WHERE id = ?', (id,)).fetchone()
-    valuaciones = conn.execute('SELECT * FROM valuaciones WHERE activa = 1 ORDER BY id DESC').fetchall()
     conn.close()
     if valuacion is None:
         return redirect(url_for('index'))
-    today = datetime.now().strftime('%Y-%m-%d')
-    return render_template('index.html', valuaciones=valuaciones, today=today,
-                           editando=valuacion, usuario=session['usuario'])
+    ctx = base_context()
+    ctx['editando'] = valuacion
+    return render_template('index.html', **ctx)
 
 
 @app.route('/actualizar/<int:id>', methods=['POST'])
