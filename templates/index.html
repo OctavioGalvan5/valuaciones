@@ -292,6 +292,49 @@
                         {% endif %}
                     </div>
                 </form>
+
+                <!-- Archivos adjuntos (solo en ver/editar) -->
+                {% if viendo or editando %}
+                <div class="section-title" style="margin-top:28px;">Archivos Adjuntos</div>
+
+                {% if archivos %}
+                <div class="archivos-list">
+                    {% for archivo in archivos %}
+                    <div class="archivo-item">
+                        <div class="archivo-info">
+                            <span class="archivo-ext archivo-ext-{{ archivo.tipo[1:] if archivo.tipo else 'file' }}">{{ (archivo.tipo[1:] if archivo.tipo else 'file')|upper }}</span>
+                            <div class="archivo-meta">
+                                <span class="archivo-nombre">{{ archivo.nombre_original }}</span>
+                                <span class="archivo-detalle">{{ archivo.subido_por }} &middot; {{ archivo.fecha_subida.strftime('%d/%m/%Y %H:%M') if archivo.fecha_subida else '' }} &middot; {{ archivo.tamanio|filesize }}</span>
+                            </div>
+                        </div>
+                        <div class="archivo-acciones">
+                            <a href="{{ url_for('descargar_archivo', id=archivo.id) }}" class="btn btn-sm btn-success" target="_blank">Descargar</a>
+                            {% if editando %}
+                            <form method="POST" action="{{ url_for('eliminar_archivo', id=archivo.id) }}" style="display:inline"
+                                onsubmit="return confirm('¿Eliminar {{ archivo.nombre_original }}?')">
+                                <button type="submit" class="btn btn-sm btn-deactivate">Eliminar</button>
+                            </form>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <p class="archivos-empty">No hay archivos adjuntos.</p>
+                {% endif %}
+
+                {% if editando %}
+                <form method="POST" action="{{ url_for('subir_archivo', valuacion_id=datos.id) }}"
+                    enctype="multipart/form-data" class="upload-form">
+                    <input type="file" name="archivo" class="upload-input"
+                        accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png" required>
+                    <button type="submit" class="btn btn-primary btn-sm">Subir archivo</button>
+                    <span class="upload-hint">PDF, Word, Excel, imágenes &mdash; máx. 20 MB</span>
+                </form>
+                {% endif %}
+                {% endif %}
+
             </div>
         </div>
 
