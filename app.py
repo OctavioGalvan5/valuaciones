@@ -35,6 +35,7 @@ USUARIOS_INICIALES = [
     ('admin',   'Sarmiento302'),
     ('Mariano', 'Sarmiento302'),
     ('Luis',    'Sarmiento302'),
+    ('Octavio', 'Sarmiento302'),
 ]
 
 ALLOWED_EXTENSIONS = {'.pdf', '.doc', '.docx', '.xls', '.xlsx', '.jpg', '.jpeg', '.png'}
