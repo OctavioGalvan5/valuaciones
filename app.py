@@ -654,6 +654,7 @@ def eliminar_archivo(id):
     return redirect(url_for('editar', id=archivo['valuacion_id']))
 
 
+init_db()
+
 if __name__ == '__main__':
-    init_db()
     app.run(debug=True, port=5002)
