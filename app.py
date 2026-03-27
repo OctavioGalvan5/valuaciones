@@ -3,12 +3,12 @@ import re
 import math
 import uuid
 from io import BytesIO
-from datetime import datetime, timedelta
+from datetime import datetime
 from functools import wraps
 
 import psycopg2
 import psycopg2.extras
-from flask import Flask, render_template, request, redirect, url_for, jsonify, session, abort
+from flask import Flask, render_template, request, redirect, url_for, jsonify, session, abort, Response, stream_with_context
 from minio import Minio
 from minio.error import S3Error
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -646,14 +646,17 @@ def descargar_archivo(id):
     if not archivo:
         abort(404)
     try:
-        url = minio_client.presigned_get_object(
-            MINIO_BUCKET,
-            archivo['objeto_minio'],
-            expires=timedelta(hours=1),
+        obj = minio_client.get_object(MINIO_BUCKET, archivo['objeto_minio'])
+        ext = (archivo['tipo'] or '').lower()
+        disposition = 'inline' if ext in ('.jpg', '.jpeg', '.png', '.pdf') else f'attachment; filename="{archivo["nombre_original"]}"'
+        content_type = obj.headers.get('content-type', 'application/octet-stream')
+        return Response(
+            stream_with_context(obj.stream(32 * 1024)),
+            content_type=content_type,
+            headers={'Content-Disposition': disposition},
         )
-        return redirect(url)
     except S3Error as e:
-        print(f'[MinIO] Error al generar URL: {e}')
+        print(f'[MinIO] Error al servir archivo: {e}')
         abort(500)
 
 
