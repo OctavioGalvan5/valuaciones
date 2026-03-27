@@ -51,7 +51,7 @@
                 {% endif %}
             </div>
             <div class="card-body">
-                <form id="form-valuacion" method="POST"
+                <form id="form-valuacion" method="POST" enctype="multipart/form-data"
                     action="{% if editando %}{{ url_for('actualizar', id=editando.id) }}{% else %}{{ url_for('agregar') }}{% endif %}">
 
                     {% if editando %}
@@ -276,6 +276,15 @@
                                 placeholder="Notas adicionales...">{{ datos.observaciones if datos else '' }}</textarea>
                         </div>
                     </div>
+
+                    {% if not viendo and not editando %}
+                    <div class="section-title">Archivos Adjuntos</div>
+                    <div class="upload-form" style="margin-bottom:8px;">
+                        <input type="file" name="archivos" class="upload-input" multiple
+                            accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png">
+                        <span class="upload-hint">PDF, Word, Excel, imágenes &mdash; máx. 20 MB &mdash; opcional</span>
+                    </div>
+                    {% endif %}
 
                     <div class="form-actions">
                         {% if viendo %}

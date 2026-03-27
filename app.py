@@ -411,7 +411,7 @@ def agregar():
     lat, lon = extraer_coordenadas(gmaps_frente or gmaps_zona)
 
     conn = get_db()
-    execute(conn, '''
+    new_id = fetchscalar(conn, '''
         INSERT INTO valuaciones (
             expediente, caratula, catastro, direccion, fecha,
             terreno_m2, terreno_frente_lado, terreno_antes_revision, usd_m2_terreno,
@@ -436,7 +436,7 @@ def agregar():
             %s, %s, %s,
             %s, %s, %s,
             %s, %s
-        )
+        ) RETURNING id
     ''', (
         data.get('expediente', '').strip(),
         data.get('caratula', '').strip(),
@@ -457,6 +457,26 @@ def agregar():
         lat, lon,
         usuario_actual, 1,
     ))
+    # Procesar archivos adjuntos opcionales
+    for file in request.files.getlist('archivos'):
+        if not file or not file.filename:
+            continue
+        ext = os.path.splitext(file.filename)[1].lower()
+        if ext not in ALLOWED_EXTENSIONS:
+            continue
+        objeto_minio = f'{new_id}/{uuid.uuid4().hex}{ext}'
+        file_data = file.read()
+        tamanio = len(file_data)
+        try:
+            minio_client.put_object(MINIO_BUCKET, objeto_minio, BytesIO(file_data), tamanio,
+                                    content_type=file.content_type or 'application/octet-stream')
+            execute(conn, '''
+                INSERT INTO archivos (valuacion_id, nombre_original, objeto_minio, tipo, tamanio, subido_por)
+                VALUES (%s, %s, %s, %s, %s, %s)
+            ''', (new_id, file.filename, objeto_minio, ext, tamanio, usuario_actual))
+        except S3Error as e:
+            print(f'[MinIO] Error al subir archivo: {e}')
+
     conn.commit()
     conn.close()
     return redirect(url_for('index'))
