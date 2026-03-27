@@ -318,6 +318,12 @@
                             </div>
                         </div>
                         <div class="archivo-acciones">
+                            {% if archivo.tipo in ('.jpg', '.jpeg', '.png') %}
+                            <img src="{{ url_for('descargar_archivo', id=archivo.id) }}"
+                                class="archivo-thumb" alt="{{ archivo.nombre_original }}"
+                                onclick="abrirImagen(this.src, '{{ archivo.nombre_original }}')"
+                                title="Click para ampliar">
+                            {% endif %}
                             <a href="{{ url_for('descargar_archivo', id=archivo.id) }}" class="btn btn-sm btn-success" target="_blank">Descargar</a>
                             {% if editando %}
                             <form method="POST" action="{{ url_for('eliminar_archivo', id=archivo.id) }}" style="display:inline"
@@ -484,6 +490,17 @@
                 </div>
                 {% endif %}
             </div>
+        </div>
+    </div>
+
+    <!-- Modal de imagen -->
+    <div id="img-modal" class="img-modal-overlay" style="display:none;" onclick="cerrarImagen()">
+        <div class="img-modal-box" onclick="event.stopPropagation()">
+            <div class="img-modal-header">
+                <span id="img-modal-nombre"></span>
+                <button class="img-modal-close" onclick="cerrarImagen()">&times;</button>
+            </div>
+            <img id="img-modal-src" src="" alt="" class="img-modal-img">
         </div>
     </div>
 
@@ -689,8 +706,20 @@
 
         // Cerrar modal con Escape
         document.addEventListener('keydown', function (e) {
-            if (e.key === 'Escape') cerrarModal();
+            if (e.key === 'Escape') { cerrarModal(); cerrarImagen(); }
         });
+
+        // ---- Modal de imagen ----
+        function abrirImagen(src, nombre) {
+            document.getElementById('img-modal-src').src = src;
+            document.getElementById('img-modal-nombre').textContent = nombre;
+            document.getElementById('img-modal').style.display = 'flex';
+        }
+
+        function cerrarImagen() {
+            document.getElementById('img-modal').style.display = 'none';
+            document.getElementById('img-modal-src').src = '';
+        }
     </script>
 
 </body>
