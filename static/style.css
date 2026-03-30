@@ -997,6 +997,58 @@ tbody td.propuesta {
     display: block;
 }
 
+/* ---- Subsección ---- */
+.section-subtitle {
+    font-size: 0.65rem;
+    font-weight: 700;
+    color: var(--text-2);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-top: 14px;
+    margin-bottom: 10px;
+    padding-left: 7px;
+    border-left: 2px solid var(--border-dark);
+}
+
+/* ---- Sección colapsable ---- */
+.collapsible-title {
+    cursor: pointer;
+    user-select: none;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+.collapsible-title:hover { opacity: 0.8; }
+
+.collapse-chevron {
+    font-size: 0.7rem;
+    color: var(--accent);
+    margin-left: 8px;
+}
+
+/* ---- Tipo + Monto + Propuesta ---- */
+.tipo-propuesta-grid {
+    margin-top: 10px;
+    grid-template-columns: 1fr 1fr 1fr;
+}
+
+.tipo-propuesta-grid .propuesta-input {
+    width: 100%;
+    padding: 8px 12px;
+    border: 2px solid var(--accent);
+    border-radius: var(--radius);
+    font-weight: 700;
+    font-size: 0.95rem;
+    color: var(--accent);
+    background: #fff;
+    font-variant-numeric: tabular-nums;
+    outline: none;
+    transition: var(--transition);
+}
+.tipo-propuesta-grid .propuesta-input:focus {
+    box-shadow: 0 0 0 3px rgba(29, 78, 216, 0.1);
+}
+
 /* ---- Calculated fields highlight ---- */
 #sup_edif_total_calc,
 #pisos_maximos,

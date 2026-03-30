@@ -141,6 +141,7 @@ def init_db():
         ('eliminado_por',               'TEXT'),
         ('fecha_eliminacion',           'TEXT'),
         ('tipo_catastro',               'TEXT'),
+        ('monto',                       'REAL DEFAULT 0'),
     ]:
         execute(conn, f'ALTER TABLE valuaciones ADD COLUMN IF NOT EXISTS {col} {definition}')
 
@@ -424,7 +425,7 @@ def agregar():
             terreno_total, fot, fos, sup_edif_total, pisos_maximos,
             porcentaje_emprendimiento, costo_usd_m2_emprendimiento, emprendimiento,
             observaciones, latitud, longitud,
-            creado_por, activa
+            creado_por, activa, monto
         ) VALUES (
             %s, %s, %s, %s, %s, %s,
             %s, %s, %s, %s,
@@ -436,7 +437,7 @@ def agregar():
             %s, %s, %s, %s, %s,
             %s, %s, %s,
             %s, %s, %s,
-            %s, %s
+            %s, %s, %s
         ) RETURNING id
     ''', (
         data.get('expediente', '').strip(),
@@ -457,7 +458,7 @@ def agregar():
         porcentaje_emprendimiento, costo_usd_m2_emprendimiento, emprendimiento,
         data.get('observaciones', '').strip(),
         lat, lon,
-        usuario_actual, 1,
+        usuario_actual, 1, parse_float(data.get('monto')),
     ))
     # Procesar archivos adjuntos opcionales
     for file in request.files.getlist('archivos'):
@@ -568,7 +569,7 @@ def actualizar(id):
             terreno_total=%s, fot=%s, fos=%s, sup_edif_total=%s, pisos_maximos=%s,
             porcentaje_emprendimiento=%s, costo_usd_m2_emprendimiento=%s, emprendimiento=%s,
             observaciones=%s, latitud=%s, longitud=%s,
-            editado_por=%s
+            editado_por=%s, monto=%s
         WHERE id=%s
     ''', (
         data.get('expediente', '').strip(),
@@ -589,7 +590,7 @@ def actualizar(id):
         porcentaje_emprendimiento, costo_usd_m2_emprendimiento, emprendimiento,
         data.get('observaciones', '').strip(),
         lat, lon,
-        usuario_actual,
+        usuario_actual, parse_float(data.get('monto')),
         id,
     ))
     conn.commit()

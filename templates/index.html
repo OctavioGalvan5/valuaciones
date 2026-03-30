@@ -69,19 +69,29 @@
                     {% set datos = none %}
                     {% endif %}
 
-                    <!-- Datos principales -->
+                    <!-- Datos del Expediente -->
                     <div class="section-title">Datos del Expediente</div>
+
+                    <div class="section-subtitle">Expediente</div>
                     <div class="form-grid">
                         <div class="form-group">
                             <label>N° de VR</label>
-                            <input type="text" value="{% if datos %}{{ datos.id }}{% else %}Auto{% endif %}"
-                                readonly>
+                            <input type="text" value="{% if datos %}{{ datos.id }}{% else %}Auto{% endif %}" readonly>
                         </div>
                         <div class="form-group">
                             <label>Expediente</label>
                             <input type="text" name="expediente" placeholder="123456/12"
                                 value="{{ datos.expediente if datos else '' }}" {% if readonly %}readonly{% endif %}>
                         </div>
+                        <div class="form-group">
+                            <label>Carátula</label>
+                            <input type="text" name="caratula" placeholder="Carátula del expediente"
+                                value="{{ datos.caratula if datos else '' }}" {% if readonly %}readonly{% endif %}>
+                        </div>
+                    </div>
+
+                    <div class="section-subtitle" style="margin-top:14px;">Inmueble</div>
+                    <div class="form-grid">
                         <div class="form-group">
                             <label>Catastro</label>
                             <input type="text" name="catastro" id="catastro" placeholder="Número de catastro"
@@ -91,15 +101,10 @@
                             <label>Tipo de Catastro</label>
                             <select name="tipo_catastro" class="form-select" {% if readonly %}disabled{% endif %}>
                                 <option value="">Seleccionar...</option>
-                                <option value="Urbano"    {% if datos and datos.tipo_catastro == 'Urbano'    %}selected{% endif %}>Urbano</option>
-                                <option value="Rural"     {% if datos and datos.tipo_catastro == 'Rural'     %}selected{% endif %}>Rural</option>
-                                <option value="Subrural"  {% if datos and datos.tipo_catastro == 'Subrural'  %}selected{% endif %}>Subrural</option>
+                                <option value="Urbano"   {% if datos and datos.tipo_catastro == 'Urbano'   %}selected{% endif %}>Urbano</option>
+                                <option value="Rural"    {% if datos and datos.tipo_catastro == 'Rural'    %}selected{% endif %}>Rural</option>
+                                <option value="Subrural" {% if datos and datos.tipo_catastro == 'Subrural' %}selected{% endif %}>Subrural</option>
                             </select>
-                        </div>
-                        <div class="form-group">
-                            <label>Carátula</label>
-                            <input type="text" name="caratula" placeholder="Carátula del expediente"
-                                value="{{ datos.caratula if datos else '' }}" {% if readonly %}readonly{% endif %}>
                         </div>
                         <div class="form-group span-2">
                             <label>Dirección</label>
@@ -109,15 +114,6 @@
                         <div class="form-group">
                             <label>Fecha</label>
                             <input type="date" name="fecha" value="{{ datos.fecha if datos else today }}" {% if readonly %}readonly{% endif %}>
-                        </div>
-                        <div class="form-group">
-                            <label>Tipo</label>
-                            <select name="denuncia" class="form-select" {% if readonly %}disabled{% endif %}>
-                                <option value="">Seleccionar...</option>
-                                <option value="Denuncia" {% if datos and datos.denuncia == 'Denuncia' %}selected{% endif %}>Denuncia</option>
-                                <option value="Tasación" {% if datos and datos.denuncia == 'Tasación' %}selected{% endif %}>Tasación</option>
-                                <option value="Pericia" {% if datos and datos.denuncia == 'Pericia' %}selected{% endif %}>Pericia</option>
-                            </select>
                         </div>
                     </div>
 
@@ -173,21 +169,35 @@
                         </tbody>
                         <tfoot>
                             <tr class="row-propuesta">
-                                <td class="row-header" colspan="5" style="text-align:right; padding-right:16px;">
-                                    + 10%</td>
+                                <td class="row-header" colspan="5" style="text-align:right; padding-right:16px;">+ 10%</td>
                                 <td class="calc-cell propuesta-cell" id="calc-propuesta">U$S 0</td>
-                            </tr>
-                            <tr class="row-propuesta-final">
-                                <td class="row-header propuesta-label" colspan="5">
-                                    PROPUESTA</td>
-                                <td class="propuesta-input-cell">
-                                    <input type="number" name="propuesta" id="propuesta_editable" step="0.01"
-                                        placeholder="0.00" value="{{ datos.propuesta if datos else '' }}"
-                                        class="propuesta-input">
-                                </td>
                             </tr>
                         </tfoot>
                     </table>
+
+                    <!-- Tipo + Monto + Propuesta -->
+                    <div class="form-grid tipo-propuesta-grid">
+                        <div class="form-group">
+                            <label>Tipo</label>
+                            <select name="denuncia" class="form-select" {% if readonly %}disabled{% endif %}>
+                                <option value="">Seleccionar...</option>
+                                <option value="Denuncia" {% if datos and datos.denuncia == 'Denuncia' %}selected{% endif %}>Denuncia</option>
+                                <option value="Tasación" {% if datos and datos.denuncia == 'Tasación' %}selected{% endif %}>Tasación</option>
+                                <option value="Pericia"  {% if datos and datos.denuncia == 'Pericia'  %}selected{% endif %}>Pericia</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Monto $</label>
+                            <input type="number" name="monto" step="0.01" placeholder="0.00"
+                                value="{{ datos.monto if datos else '' }}" {% if readonly %}readonly{% endif %}>
+                        </div>
+                        <div class="form-group">
+                            <label>Propuesta U$S</label>
+                            <input type="number" name="propuesta" id="propuesta_editable" step="0.01"
+                                placeholder="0.00" value="{{ datos.propuesta if datos else '' }}"
+                                class="propuesta-input" {% if readonly %}readonly{% endif %}>
+                        </div>
+                    </div>
 
                     <!-- Google Maps Links -->
                     <div class="section-title">Google Maps</div>
@@ -206,58 +216,63 @@
                         </div>
                     </div>
 
-                    <!-- Datos urbanísticos -->
-                    <div class="section-title">Datos Urbanísticos</div>
-                    <div class="form-grid">
-                        <div class="form-group">
-                            <label>Terreno Total (m²)</label>
-                            <input type="number" name="terreno_total" id="terreno_total" step="0.01" placeholder="0.00"
-                                value="{{ datos.terreno_total if datos else '' }}" oninput="calcularUrb()" {% if readonly %}readonly{% endif %}>
-                        </div>
-                        <div class="form-group">
-                            <label>FOT</label>
-                            <input type="number" name="fot" id="fot" step="0.01" placeholder="0.00"
-                                value="{{ datos.fot if datos else '' }}" oninput="calcularUrb()" {% if readonly %}readonly{% endif %}>
-                        </div>
-                        <div class="form-group">
-                            <label>FOS</label>
-                            <input type="number" name="fos" id="fos" step="0.01" placeholder="0.00"
-                                value="{{ datos.fos if datos else '' }}" oninput="calcularUrb()" {% if readonly %}readonly{% endif %}>
-                        </div>
-                        <div class="form-group">
-                            <label>Sup. Edif. Total (calc.)</label>
-                            <input type="number" name="sup_edif_total_calc" id="sup_edif_total_calc" step="1"
-                                placeholder="0" value="{{ datos.sup_edif_total if datos else '' }}" oninput="calcularEmprendimiento()" {% if readonly %}readonly{% endif %}>
-                        </div>
-                        <div class="form-group">
-                            <label>Pisos Máximos (calc.)</label>
-                            <input type="number" name="pisos_maximos" id="pisos_maximos" step="1" placeholder="0"
-                                value="{{ datos.pisos_maximos if datos else '' }}" oninput="calcularEmprendimiento()" {% if readonly %}readonly{% endif %}>
-                        </div>
+                    <!-- Datos Urbanísticos + Emprendimiento (colapsable) -->
+                    {% set urb_tiene_datos = datos and (datos.terreno_total or datos.fot or datos.fos or datos.emprendimiento) %}
+                    <div class="section-title collapsible-title" onclick="toggleUrb(this)">
+                        Datos Urbanísticos y Emprendimiento
+                        <span class="collapse-chevron">{% if urb_tiene_datos %}▲{% else %}▼{% endif %}</span>
                     </div>
+                    <div id="urb-section" style="display: {% if urb_tiene_datos %}block{% else %}none{% endif %};">
+                        <div class="form-grid">
+                            <div class="form-group">
+                                <label>Terreno Total (m²)</label>
+                                <input type="number" name="terreno_total" id="terreno_total" step="0.01" placeholder="0.00"
+                                    value="{{ datos.terreno_total if datos else '' }}" oninput="calcularUrb()" {% if readonly %}readonly{% endif %}>
+                            </div>
+                            <div class="form-group">
+                                <label>FOT</label>
+                                <input type="number" name="fot" id="fot" step="0.01" placeholder="0.00"
+                                    value="{{ datos.fot if datos else '' }}" oninput="calcularUrb()" {% if readonly %}readonly{% endif %}>
+                            </div>
+                            <div class="form-group">
+                                <label>FOS</label>
+                                <input type="number" name="fos" id="fos" step="0.01" placeholder="0.00"
+                                    value="{{ datos.fos if datos else '' }}" oninput="calcularUrb()" {% if readonly %}readonly{% endif %}>
+                            </div>
+                            <div class="form-group">
+                                <label>Sup. Edif. Total (calc.)</label>
+                                <input type="number" name="sup_edif_total_calc" id="sup_edif_total_calc" step="1"
+                                    placeholder="0" value="{{ datos.sup_edif_total if datos else '' }}" oninput="calcularEmprendimiento()" {% if readonly %}readonly{% endif %}>
+                            </div>
+                            <div class="form-group">
+                                <label>Pisos Máximos (calc.)</label>
+                                <input type="number" name="pisos_maximos" id="pisos_maximos" step="1" placeholder="0"
+                                    value="{{ datos.pisos_maximos if datos else '' }}" oninput="calcularEmprendimiento()" {% if readonly %}readonly{% endif %}>
+                            </div>
+                        </div>
 
-                    <!-- Emprendimiento -->
-                    <div class="section-title">Emprendimiento</div>
-                    <div class="form-grid">
-                        <div class="form-group">
-                            <label>% (8 a 12)</label>
-                            <input type="number" name="porcentaje_emprendimiento" id="porcentaje_emprendimiento"
-                                step="0.01" placeholder="10"
-                                value="{{ datos.porcentaje_emprendimiento if datos else '' }}"
-                                oninput="calcularEmprendimiento()" {% if readonly %}readonly{% endif %}>
-                        </div>
-                        <div class="form-group">
-                            <label>Costo u$s/m²</label>
-                            <input type="number" name="costo_usd_m2_emprendimiento" id="costo_usd_m2_emprendimiento"
-                                step="0.01" placeholder="0.00"
-                                value="{{ datos.costo_usd_m2_emprendimiento if datos else '' }}"
-                                oninput="calcularEmprendimiento()" {% if readonly %}readonly{% endif %}>
-                        </div>
-                        <div class="form-group">
-                            <label>Emprendimiento u$s (calc.)</label>
-                            <input type="number" name="emprendimiento" id="emprendimiento" step="0.01"
-                                placeholder="0.00"
-                                value="{{ datos.emprendimiento if datos else '' }}" {% if readonly %}readonly{% endif %}>
+                        <div class="section-subtitle">Emprendimiento</div>
+                        <div class="form-grid">
+                            <div class="form-group">
+                                <label>% (8 a 12)</label>
+                                <input type="number" name="porcentaje_emprendimiento" id="porcentaje_emprendimiento"
+                                    step="0.01" placeholder="10"
+                                    value="{{ datos.porcentaje_emprendimiento if datos else '' }}"
+                                    oninput="calcularEmprendimiento()" {% if readonly %}readonly{% endif %}>
+                            </div>
+                            <div class="form-group">
+                                <label>Costo u$s/m²</label>
+                                <input type="number" name="costo_usd_m2_emprendimiento" id="costo_usd_m2_emprendimiento"
+                                    step="0.01" placeholder="0.00"
+                                    value="{{ datos.costo_usd_m2_emprendimiento if datos else '' }}"
+                                    oninput="calcularEmprendimiento()" {% if readonly %}readonly{% endif %}>
+                            </div>
+                            <div class="form-group">
+                                <label>Emprendimiento u$s (calc.)</label>
+                                <input type="number" name="emprendimiento" id="emprendimiento" step="0.01"
+                                    placeholder="0.00"
+                                    value="{{ datos.emprendimiento if datos else '' }}" {% if readonly %}readonly{% endif %}>
+                            </div>
                         </div>
                     </div>
 
@@ -705,6 +720,15 @@
         document.addEventListener('keydown', function (e) {
             if (e.key === 'Escape') { cerrarModal(); cerrarImagen(); }
         });
+
+        // Toggle sección urbanística
+        function toggleUrb(titleEl) {
+            var section = document.getElementById('urb-section');
+            var chevron = titleEl.querySelector('.collapse-chevron');
+            var visible = section.style.display !== 'none';
+            section.style.display = visible ? 'none' : 'block';
+            chevron.textContent = visible ? '▼' : '▲';
+        }
 
         // Evitar que Enter envíe el formulario (excepto en textarea)
         document.getElementById('form-valuacion').addEventListener('keydown', function (e) {
