@@ -1,0 +1,605 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>
+        {% if viendo %}Ver VR #{{ viendo.id }}
+        {% elif editando %}Editar VR #{{ editando.id }}
+        {% else %}Nueva Valuación
+        {% endif %} — Sistema de Valuaciones
+    </title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+
+<body>
+
+    <!-- Header -->
+    <header class="app-header">
+        <h1>
+            {% if viendo %}Ver Valuación &mdash; VR #{{ viendo.id }}
+            {% elif editando %}Editar Valuación &mdash; VR #{{ editando.id }}
+            {% else %}Nueva Valuación
+            {% endif %}
+        </h1>
+        <div class="header-stats">
+            <a href="{{ url_for('index') }}" class="btn-logout">← Volver a lista</a>
+            <div class="stat-badge">
+                <span class="header-user-icon">&#9679;</span> {{ usuario }}
+            </div>
+            <a href="{{ url_for('logout') }}" class="btn-logout">Cerrar sesión</a>
+        </div>
+    </header>
+
+    <div class="container" style="max-width: 960px;">
+
+        <!-- Alertas dinámicas -->
+        <div id="alertas-container" class="alert-container"></div>
+
+        <!-- Flash messages -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+        {% for category, message in messages %}
+        <div class="alert alert-{{ category }}">{{ message }}</div>
+        {% endfor %}
+        {% endif %}
+        {% endwith %}
+
+        <!-- Formulario -->
+        <div class="card">
+            <div class="card-header">
+                {% if viendo %}Ver Valuación &mdash; VR #{{ viendo.id }}
+                {% elif editando %}Editar Valuación &mdash; VR #{{ editando.id }}
+                {% else %}Nueva Valuación
+                {% endif %}
+            </div>
+            <div class="card-body">
+                <form id="form-valuacion" method="POST" enctype="multipart/form-data"
+                    action="{% if editando %}{{ url_for('actualizar', id=editando.id) }}{% else %}{{ url_for('agregar') }}{% endif %}">
+
+                    {% if editando %}
+                    <input type="hidden" id="editando_id" value="{{ editando.id }}">
+                    {% endif %}
+                    {% if viendo %}
+                    <input type="hidden" id="viendo_id" value="{{ viendo.id }}">
+                    {% set readonly = true %}
+                    {% set datos = viendo %}
+                    {% elif editando %}
+                    {% set readonly = false %}
+                    {% set datos = editando %}
+                    {% else %}
+                    {% set readonly = false %}
+                    {% set datos = none %}
+                    {% endif %}
+
+                    <!-- Datos del Expediente -->
+                    <div class="section-title">Datos del Expediente</div>
+
+                    <div class="section-subtitle">Expediente</div>
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label>N° de VR</label>
+                            <input type="text" value="{% if datos %}{{ datos.id }}{% else %}Auto{% endif %}" readonly>
+                        </div>
+                        <div class="form-group">
+                            <label>Expediente</label>
+                            <input type="text" name="expediente" placeholder="123456/12"
+                                value="{{ datos.expediente if datos else '' }}" {% if readonly %}readonly{% endif %}>
+                        </div>
+                        <div class="form-group">
+                            <label>Carátula</label>
+                            <input type="text" name="caratula" placeholder="Carátula del expediente"
+                                value="{{ datos.caratula if datos else '' }}" {% if readonly %}readonly{% endif %}>
+                        </div>
+                    </div>
+
+                    <div class="section-subtitle" style="margin-top:14px;">Inmueble</div>
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label>Catastro</label>
+                            <input type="text" name="catastro" id="catastro" placeholder="Número de catastro"
+                                value="{{ datos.catastro if datos else '' }}" {% if not readonly %}required{% endif %} {% if readonly %}readonly{% endif %}>
+                        </div>
+                        <div class="form-group">
+                            <label>Tipo de Catastro</label>
+                            <select name="tipo_catastro" class="form-select" {% if readonly %}disabled{% endif %}>
+                                <option value="">Seleccionar...</option>
+                                <option value="Urbano"   {% if datos and datos.tipo_catastro == 'Urbano'   %}selected{% endif %}>Urbano</option>
+                                <option value="Rural"    {% if datos and datos.tipo_catastro == 'Rural'    %}selected{% endif %}>Rural</option>
+                                <option value="Subrural" {% if datos and datos.tipo_catastro == 'Subrural' %}selected{% endif %}>Subrural</option>
+                            </select>
+                        </div>
+                        <div class="form-group span-2">
+                            <label>Dirección</label>
+                            <input type="text" name="direccion" placeholder="Dirección completa"
+                                value="{{ datos.direccion if datos else '' }}" {% if readonly %}readonly{% endif %}>
+                        </div>
+                        <div class="form-group">
+                            <label>Fecha</label>
+                            <input type="date" name="fecha" value="{{ datos.fecha if datos else today }}" {% if readonly %}readonly{% endif %}>
+                        </div>
+                    </div>
+
+                    <!-- Superficies y valores - TABLA TIPO EXCEL -->
+                    <div class="section-title">Superficies y Valores</div>
+                    <table class="excel-table">
+                        <thead>
+                            <tr>
+                                <th class="row-header"></th>
+                                <th>m²</th>
+                                <th>Frente / Lado</th>
+                                <th>Antes / Revisión</th>
+                                <th>U$S / m²</th>
+                                <th>Total U$S</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td class="row-header">Terreno</td>
+                                <td><input type="number" name="terreno_m2" id="terreno_m2" step="0.01"
+                                        placeholder="0.00" value="{{ datos.terreno_m2 if datos else '' }}"
+                                        oninput="calcular()" {% if readonly %}readonly{% endif %}></td>
+                                <td><input type="text" name="terreno_frente_lado" placeholder=""
+                                        value="{{ datos.terreno_frente_lado if datos else '' }}" {% if readonly %}readonly{% endif %}></td>
+                                <td><input type="text" name="terreno_antes_revision" placeholder=""
+                                        value="{{ datos.terreno_antes_revision if datos else '' }}" {% if readonly %}readonly{% endif %}></td>
+                                <td><input type="number" name="usd_m2_terreno" id="usd_m2_terreno" step="0.01"
+                                        placeholder="0.00" value="{{ datos.usd_m2_terreno if datos else '' }}"
+                                        oninput="calcular()" {% if readonly %}readonly{% endif %}></td>
+                                <td class="calc-cell" id="calc-terreno">0</td>
+                            </tr>
+                            <tr>
+                                <td class="row-header">Sup. Edif.</td>
+                                <td><input type="number" name="sup_edif_m2" id="sup_edif_m2" step="0.01"
+                                        placeholder="0.00" value="{{ datos.sup_edif_m2 if datos else '' }}"
+                                        oninput="calcular()" {% if readonly %}readonly{% endif %}></td>
+                                <td><input type="text" name="edif_frente_lado" placeholder=""
+                                        value="{{ datos.edif_frente_lado if datos else '' }}" {% if readonly %}readonly{% endif %}></td>
+                                <td><input type="text" name="edif_antes_revision" placeholder=""
+                                        value="{{ datos.edif_antes_revision if datos else '' }}" {% if readonly %}readonly{% endif %}></td>
+                                <td><input type="number" name="usd_m2_edif" id="usd_m2_edif" step="0.01"
+                                        placeholder="0.00" value="{{ datos.usd_m2_edif if datos else '' }}"
+                                        oninput="calcular()" {% if readonly %}readonly{% endif %}></td>
+                                <td class="calc-cell" id="calc-edif">0</td>
+                            </tr>
+                            <tr class="row-dolar">
+                                <td class="row-header">Dólar</td>
+                                <td><input type="number" name="valor_dolar" id="valor_dolar" step="0.01"
+                                        placeholder="0.00" value="{{ datos.valor_dolar if datos else '' }}" {% if readonly %}readonly{% endif %}></td>
+                                <td colspan="3"></td>
+                                <td class="calc-cell total-row" id="calc-total">0</td>
+                            </tr>
+                        </tbody>
+                        <tfoot>
+                            <tr class="row-propuesta">
+                                <td class="row-header" colspan="5" style="text-align:right; padding-right:16px;">+ 10%</td>
+                                <td class="calc-cell propuesta-cell" id="calc-propuesta">U$S 0</td>
+                            </tr>
+                        </tfoot>
+                    </table>
+
+                    <!-- Tipo + Monto + Propuesta -->
+                    <div class="form-grid tipo-propuesta-grid">
+                        <div class="form-group">
+                            <label>Tipo</label>
+                            <select name="denuncia" class="form-select" {% if readonly %}disabled{% endif %}>
+                                <option value="">Seleccionar...</option>
+                                <option value="Denuncia" {% if datos and datos.denuncia == 'Denuncia' %}selected{% endif %}>Denuncia</option>
+                                <option value="Tasación" {% if datos and datos.denuncia == 'Tasación' %}selected{% endif %}>Tasación</option>
+                                <option value="Pericia"  {% if datos and datos.denuncia == 'Pericia'  %}selected{% endif %}>Pericia</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Monto $</label>
+                            <input type="number" name="monto" step="0.01" placeholder="0.00"
+                                value="{{ datos.monto if datos else '' }}" {% if readonly %}readonly{% endif %}>
+                        </div>
+                        <div class="form-group">
+                            <label>Propuesta U$S</label>
+                            <input type="number" name="propuesta" id="propuesta_editable" step="0.01"
+                                placeholder="0.00" value="{{ datos.propuesta if datos else '' }}"
+                                class="propuesta-input" {% if readonly %}readonly{% endif %}>
+                        </div>
+                    </div>
+
+                    <!-- Google Maps Links -->
+                    <div class="section-title">Google Maps</div>
+                    <div class="form-grid">
+                        <div class="form-group span-2">
+                            <label>G-Maps Zona (Link)</label>
+                            <input type="url" name="gmaps_zona" id="gmaps_zona"
+                                placeholder="https://www.google.com/maps/..."
+                                value="{{ datos.gmaps_zona if datos else '' }}" {% if readonly %}readonly{% endif %}>
+                        </div>
+                        <div class="form-group span-2">
+                            <label>G-Maps Frente (Link)</label>
+                            <input type="url" name="gmaps_frente" id="gmaps_frente"
+                                placeholder="https://www.google.com/maps/..."
+                                value="{{ datos.gmaps_frente if datos else '' }}" {% if readonly %}readonly{% endif %}>
+                        </div>
+                    </div>
+
+                    <!-- Datos Urbanísticos + Emprendimiento (colapsable) -->
+                    {% set urb_tiene_datos = datos and (datos.terreno_total or datos.fot or datos.fos or datos.emprendimiento) %}
+                    <div class="section-title collapsible-title" onclick="toggleUrb(this)">
+                        Datos Urbanísticos y Emprendimiento
+                        <span class="collapse-chevron">{% if urb_tiene_datos %}▲{% else %}▼{% endif %}</span>
+                    </div>
+                    <div id="urb-section" style="display: {% if urb_tiene_datos %}block{% else %}none{% endif %};">
+                        <div class="form-grid">
+                            <div class="form-group">
+                                <label>Terreno Total (m²)</label>
+                                <input type="number" name="terreno_total" id="terreno_total" step="0.01" placeholder="0.00"
+                                    value="{{ datos.terreno_total if datos else '' }}" oninput="calcularUrb()" {% if readonly %}readonly{% endif %}>
+                            </div>
+                            <div class="form-group">
+                                <label>FOT</label>
+                                <input type="number" name="fot" id="fot" step="0.01" placeholder="0.00"
+                                    value="{{ datos.fot if datos else '' }}" oninput="calcularUrb()" {% if readonly %}readonly{% endif %}>
+                            </div>
+                            <div class="form-group">
+                                <label>FOS</label>
+                                <input type="number" name="fos" id="fos" step="0.01" placeholder="0.00"
+                                    value="{{ datos.fos if datos else '' }}" oninput="calcularUrb()" {% if readonly %}readonly{% endif %}>
+                            </div>
+                            <div class="form-group">
+                                <label>Sup. Edif. Total (calc.)</label>
+                                <input type="number" name="sup_edif_total_calc" id="sup_edif_total_calc" step="1"
+                                    placeholder="0" value="{{ datos.sup_edif_total if datos else '' }}" oninput="calcularEmprendimiento()" {% if readonly %}readonly{% endif %}>
+                            </div>
+                            <div class="form-group">
+                                <label>Pisos Máximos (calc.)</label>
+                                <input type="number" name="pisos_maximos" id="pisos_maximos" step="1" placeholder="0"
+                                    value="{{ datos.pisos_maximos if datos else '' }}" oninput="calcularEmprendimiento()" {% if readonly %}readonly{% endif %}>
+                            </div>
+                        </div>
+
+                        <div class="section-subtitle">Emprendimiento</div>
+                        <div class="form-grid">
+                            <div class="form-group">
+                                <label>% (8 a 12)</label>
+                                <input type="number" name="porcentaje_emprendimiento" id="porcentaje_emprendimiento"
+                                    step="0.01" placeholder="10"
+                                    value="{{ datos.porcentaje_emprendimiento if datos else '' }}"
+                                    oninput="calcularEmprendimiento()" {% if readonly %}readonly{% endif %}>
+                            </div>
+                            <div class="form-group">
+                                <label>Costo u$s/m²</label>
+                                <input type="number" name="costo_usd_m2_emprendimiento" id="costo_usd_m2_emprendimiento"
+                                    step="0.01" placeholder="0.00"
+                                    value="{{ datos.costo_usd_m2_emprendimiento if datos else '' }}"
+                                    oninput="calcularEmprendimiento()" {% if readonly %}readonly{% endif %}>
+                            </div>
+                            <div class="form-group">
+                                <label>Emprendimiento u$s (calc.)</label>
+                                <input type="number" name="emprendimiento" id="emprendimiento" step="0.01"
+                                    placeholder="0.00"
+                                    value="{{ datos.emprendimiento if datos else '' }}" {% if readonly %}readonly{% endif %}>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Auditoría -->
+                    {% if datos %}
+                    <div class="section-title">Auditoría</div>
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label>Creado por</label>
+                            <input type="text" value="{{ datos.creado_por or '—' }}" readonly>
+                        </div>
+                        <div class="form-group">
+                            <label>Última edición</label>
+                            <input type="text" value="{{ datos.editado_por or '—' }}" readonly>
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    <!-- Observaciones -->
+                    <div class="section-title">Observaciones</div>
+                    <div class="form-grid">
+                        <div class="form-group span-3">
+                            <label>Observaciones</label>
+                            <textarea name="observaciones" rows="2"
+                                placeholder="Notas adicionales..." {% if readonly %}readonly{% endif %}>{{ datos.observaciones if datos else '' }}</textarea>
+                        </div>
+                    </div>
+
+                    {% if not viendo and not editando %}
+                    <div class="section-title">Archivos Adjuntos</div>
+                    <div class="upload-form" style="margin-bottom:8px;">
+                        <input type="file" name="archivos" class="upload-input" multiple
+                            accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png">
+                        <span class="upload-hint">PDF, Word, Excel, imágenes &mdash; máx. 20 MB &mdash; opcional</span>
+                    </div>
+                    {% endif %}
+
+                    <div class="form-actions">
+                        {% if viendo %}
+                        <a href="{{ url_for('index') }}" class="btn btn-danger">Volver</a>
+                        <a href="{{ url_for('editar', id=viendo.id) }}" class="btn btn-primary">Editar</a>
+                        {% else %}
+                            {% if editando %}
+                            <form method="POST" action="{{ url_for('desactivar', id=editando.id) }}" style="display:inline"
+                                onsubmit="return confirm('¿Desactivar VR #{{ editando.id }}?')">
+                                <button type="submit" class="btn btn-deactivate">Desactivar</button>
+                            </form>
+                            <a href="{{ url_for('index') }}" class="btn btn-danger">Cancelar</a>
+                            {% else %}
+                            <a href="{{ url_for('index') }}" class="btn btn-danger">Cancelar</a>
+                            {% endif %}
+                            <button type="button" class="btn btn-warning" onclick="verificar()">Verificar</button>
+                            <button type="submit" class="btn btn-primary" id="btn-guardar">
+                                {% if editando %}Actualizar{% else %}Guardar{% endif %}
+                            </button>
+                        {% endif %}
+                    </div>
+                </form>
+
+                <!-- Archivos adjuntos (solo en ver/editar) -->
+                {% if viendo or editando %}
+                <div class="section-title" style="margin-top:28px;">Archivos Adjuntos</div>
+
+                {% if archivos %}
+                <div class="archivos-list">
+                    {% for archivo in archivos %}
+                    <div class="archivo-item">
+                        <div class="archivo-info">
+                            <span class="archivo-ext archivo-ext-{{ archivo.tipo[1:] if archivo.tipo else 'file' }}">{{ (archivo.tipo[1:] if archivo.tipo else 'file')|upper }}</span>
+                            <div class="archivo-meta">
+                                <span class="archivo-nombre">{{ archivo.nombre_original }}</span>
+                                <span class="archivo-detalle">{{ archivo.subido_por }} &middot; {{ archivo.fecha_subida.strftime('%d/%m/%Y %H:%M') if archivo.fecha_subida else '' }} &middot; {{ archivo.tamanio|filesize }}</span>
+                            </div>
+                        </div>
+                        <div class="archivo-acciones">
+                            {% if archivo.tipo in ('.jpg', '.jpeg', '.png') %}
+                            <img src="{{ url_for('descargar_archivo', id=archivo.id) }}"
+                                class="archivo-thumb" alt="{{ archivo.nombre_original }}"
+                                onclick="abrirImagen(this.src, '{{ archivo.nombre_original }}')"
+                                title="Click para ampliar">
+                            {% endif %}
+                            <a href="{{ url_for('descargar_archivo', id=archivo.id) }}" class="btn btn-sm btn-success" target="_blank">Descargar</a>
+                            {% if editando %}
+                            <form method="POST" action="{{ url_for('eliminar_archivo', id=archivo.id) }}" style="display:inline"
+                                onsubmit="return confirm('¿Eliminar {{ archivo.nombre_original }}?')">
+                                <button type="submit" class="btn btn-sm btn-deactivate">Eliminar</button>
+                            </form>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <p class="archivos-empty">No hay archivos adjuntos.</p>
+                {% endif %}
+
+                {% if editando %}
+                <form method="POST" action="{{ url_for('subir_archivo', valuacion_id=datos.id) }}"
+                    enctype="multipart/form-data" class="upload-form">
+                    <input type="file" name="archivo" class="upload-input"
+                        accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png" required>
+                    <button type="submit" class="btn btn-primary btn-sm">Subir archivo</button>
+                    <span class="upload-hint">PDF, Word, Excel, imágenes &mdash; máx. 20 MB</span>
+                </form>
+                {% endif %}
+                {% endif %}
+
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal de imagen -->
+    <div id="img-modal" class="img-modal-overlay" style="display:none;" onclick="cerrarImagen()">
+        <div class="img-modal-box" onclick="event.stopPropagation()">
+            <div class="img-modal-header">
+                <span id="img-modal-nombre"></span>
+                <button class="img-modal-close" onclick="cerrarImagen()">&times;</button>
+            </div>
+            <img id="img-modal-src" src="" alt="" class="img-modal-img">
+        </div>
+    </div>
+
+    <!-- Modal de alertas -->
+    <div id="modal-overlay" class="modal-overlay" style="display:none;">
+        <div class="modal-box">
+            <div class="modal-header">
+                <h2 id="modal-title">Atención</h2>
+            </div>
+            <div class="modal-body" id="modal-body"></div>
+            <div class="modal-footer">
+                <button class="btn btn-danger" onclick="cerrarModal()">Cancelar</button>
+                <button class="btn btn-primary" id="modal-confirmar" onclick="confirmarGuardado()">Guardar de todas formas</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        var pendienteGuardar = false;
+
+        function calcular() {
+            var terrenoM2    = parseFloat(document.getElementById('terreno_m2').value)    || 0;
+            var usdTerreno   = parseFloat(document.getElementById('usd_m2_terreno').value) || 0;
+            var edifM2       = parseFloat(document.getElementById('sup_edif_m2').value)   || 0;
+            var usdEdif      = parseFloat(document.getElementById('usd_m2_edif').value)   || 0;
+
+            var totalTerreno = terrenoM2 * usdTerreno;
+            var totalEdif    = edifM2 * usdEdif;
+            var total        = totalTerreno + totalEdif;
+            var propuesta    = total * 1.10;
+
+            document.getElementById('calc-terreno').textContent   = totalTerreno.toLocaleString('es-AR', { maximumFractionDigits: 0 });
+            document.getElementById('calc-edif').textContent      = totalEdif.toLocaleString('es-AR', { maximumFractionDigits: 0 });
+            document.getElementById('calc-total').textContent     = total.toLocaleString('es-AR', { maximumFractionDigits: 0 });
+            document.getElementById('calc-propuesta').textContent = 'U$S ' + propuesta.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+            var propuestaInput = document.getElementById('propuesta_editable');
+            if (!propuestaInput.value) {
+                propuestaInput.value = propuesta.toFixed(2);
+            }
+        }
+
+        function calcularUrb() {
+            var terrenoTotal  = parseFloat(document.getElementById('terreno_total').value) || 0;
+            var fot           = parseFloat(document.getElementById('fot').value)           || 0;
+            var fos           = parseFloat(document.getElementById('fos').value)           || 0;
+
+            var supEdifTotal  = Math.floor(terrenoTotal * fot);
+            document.getElementById('sup_edif_total_calc').value = supEdifTotal;
+
+            var base          = terrenoTotal * fos;
+            var pisosMaximos  = base > 0 ? Math.floor(supEdifTotal / base) : 0;
+            document.getElementById('pisos_maximos').value = pisosMaximos;
+
+            calcularEmprendimiento();
+        }
+
+        function calcularEmprendimiento() {
+            var terrenoTotal = parseFloat(document.getElementById('terreno_total').value)                   || 0;
+            var fos          = parseFloat(document.getElementById('fos').value)                             || 0;
+            var pisosMaximos = parseFloat(document.getElementById('pisos_maximos').value)                   || 0;
+            var porcentaje   = parseFloat(document.getElementById('porcentaje_emprendimiento').value)       || 0;
+            var costoM2      = parseFloat(document.getElementById('costo_usd_m2_emprendimiento').value)     || 0;
+
+            var emprendimiento = terrenoTotal * fos * pisosMaximos * (porcentaje / 100) * costoM2;
+            document.getElementById('emprendimiento').value = emprendimiento.toFixed(2);
+        }
+
+        document.addEventListener('DOMContentLoaded', function () {
+            var editandoEl = document.getElementById('editando_id');
+            var viendoEl   = document.getElementById('viendo_id');
+
+            if (editandoEl || viendoEl) {
+                calcular();
+            }
+
+            if (viendoEl) {
+                var form = document.getElementById('form-valuacion');
+                form.querySelectorAll('input:not([readonly]), select, textarea').forEach(function(el) {
+                    el.disabled = true;
+                });
+            }
+        });
+
+        // ---- Modal de alertas ----
+        function mostrarModal(alertas) {
+            var body = document.getElementById('modal-body');
+            body.innerHTML = '';
+            alertas.forEach(function (alerta) {
+                var tipo = alerta.tipo === 'duplicado' ? 'danger' : 'warning';
+                body.innerHTML += '<div class="alert alert-' + tipo + '">' + alerta.mensaje + '</div>';
+            });
+            body.innerHTML += '<p style="margin-top:16px; color:#4b5563; font-size:0.9rem;">¿Desea guardar de todas formas?</p>';
+            document.getElementById('modal-overlay').style.display = 'flex';
+        }
+
+        function cerrarModal() {
+            document.getElementById('modal-overlay').style.display = 'none';
+            pendienteGuardar = false;
+        }
+
+        function confirmarGuardado() {
+            document.getElementById('modal-overlay').style.display = 'none';
+            pendienteGuardar = false;
+            document.getElementById('form-valuacion').submit();
+        }
+
+        // ---- Verificación AJAX ----
+        function verificar(esGuardado) {
+            var catastro    = document.getElementById('catastro').value.trim();
+            var gmapsZona   = document.getElementById('gmaps_zona').value.trim();
+            var gmapsFrente = document.getElementById('gmaps_frente').value.trim();
+            var container   = document.getElementById('alertas-container');
+
+            if (!esGuardado) container.innerHTML = '';
+
+            if (!catastro && !gmapsZona && !gmapsFrente) {
+                if (!esGuardado) container.innerHTML = '<div class="alert alert-info">Ingrese al menos un número de catastro o un link de Google Maps para verificar.</div>';
+                if (esGuardado) document.getElementById('form-valuacion').submit();
+                return;
+            }
+
+            var data = { catastro: catastro, gmaps_zona: gmapsZona, gmaps_frente: gmapsFrente };
+            var editandoInput = document.getElementById('editando_id');
+            if (editandoInput) data.exclude_id = parseInt(editandoInput.value);
+
+            if (!esGuardado) container.innerHTML = '<div class="alert alert-info"><span class="spinner"></span> Verificando...</div>';
+
+            fetch('/verificar_catastro', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            })
+            .then(function (res) { return res.json(); })
+            .then(function (result) {
+                container.innerHTML = '';
+                if (result.alertas.length === 0) {
+                    if (esGuardado) {
+                        document.getElementById('form-valuacion').submit();
+                    } else {
+                        container.innerHTML = '<div class="alert alert-success">No se encontraron duplicados ni catastros cercanos.</div>';
+                        setTimeout(function () { container.innerHTML = ''; }, 5000);
+                    }
+                } else {
+                    if (esGuardado) mostrarModal(result.alertas);
+                    result.alertas.forEach(function (alerta) {
+                        var tipo = alerta.tipo === 'duplicado' ? 'danger' : 'warning';
+                        container.innerHTML += '<div class="alert alert-' + tipo + '">' + alerta.mensaje + '</div>';
+                    });
+                }
+                if (result.coordenadas.lat && result.coordenadas.lon) {
+                    container.innerHTML += '<div class="alert alert-info">Coordenadas detectadas: ' + result.coordenadas.lat.toFixed(6) + ', ' + result.coordenadas.lon.toFixed(6) + '</div>';
+                }
+            })
+            .catch(function (err) {
+                container.innerHTML = '<div class="alert alert-danger">Error al verificar: ' + err.message + '</div>';
+                if (esGuardado) document.getElementById('form-valuacion').submit();
+            });
+        }
+
+        document.getElementById('form-valuacion').addEventListener('submit', function (e) {
+            e.preventDefault();
+            verificar(true);
+        });
+
+        document.getElementById('catastro').addEventListener('blur', function () {
+            if (this.value.trim()) verificar(false);
+        });
+        document.getElementById('gmaps_zona').addEventListener('blur', function () {
+            if (this.value.trim()) verificar(false);
+        });
+        document.getElementById('gmaps_frente').addEventListener('blur', function () {
+            if (this.value.trim()) verificar(false);
+        });
+
+        document.addEventListener('keydown', function (e) {
+            if (e.key === 'Escape') { cerrarModal(); cerrarImagen(); }
+        });
+
+        document.getElementById('form-valuacion').addEventListener('keydown', function (e) {
+            if (e.key === 'Enter' && e.target.tagName !== 'TEXTAREA') {
+                e.preventDefault();
+            }
+        });
+
+        function toggleUrb(titleEl) {
+            var section = document.getElementById('urb-section');
+            var chevron = titleEl.querySelector('.collapse-chevron');
+            var visible = section.style.display !== 'none';
+            section.style.display = visible ? 'none' : 'block';
+            chevron.textContent   = visible ? '▼' : '▲';
+        }
+
+        function abrirImagen(src, nombre) {
+            document.getElementById('img-modal-src').src             = src;
+            document.getElementById('img-modal-nombre').textContent  = nombre;
+            document.getElementById('img-modal').style.display       = 'flex';
+        }
+
+        function cerrarImagen() {
+            document.getElementById('img-modal').style.display = 'none';
+            document.getElementById('img-modal-src').src       = '';
+        }
+    </script>
+
+</body>
+</html>

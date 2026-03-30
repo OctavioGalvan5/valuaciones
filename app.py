@@ -236,25 +236,6 @@ def parse_int(val):
         return 0
 
 
-def base_context():
-    conn = get_db()
-    total = fetchscalar(conn, 'SELECT COUNT(*) FROM valuaciones WHERE activa = 1')
-    valuaciones = fetchall(conn,
-        'SELECT * FROM valuaciones WHERE activa = 1 ORDER BY id DESC LIMIT %s OFFSET %s',
-        [PER_PAGE, 0])
-    usuarios_db = fetchall(conn, 'SELECT username FROM usuarios ORDER BY username')
-    conn.close()
-    total_pages = max(1, (total + PER_PAGE - 1) // PER_PAGE)
-    return {
-        'valuaciones':    valuaciones,
-        'today':          datetime.now().strftime('%Y-%m-%d'),
-        'usuario':        session['usuario'],
-        'q': '', 'desde': '', 'hasta': '', 'filtro_usuario': '',
-        'page': 1, 'total_pages': total_pages, 'total': total,
-        'usuarios_lista': [u['username'] for u in usuarios_db],
-        'archivos':       [],
-    }
-
 
 # ---- Routes ----
 
@@ -497,6 +478,14 @@ def desactivar(id):
     return redirect(url_for('index'))
 
 
+@app.route('/nueva')
+@login_required
+def nueva():
+    return render_template('form.html',
+                           today=datetime.now().strftime('%Y-%m-%d'),
+                           usuario=session['usuario'])
+
+
 @app.route('/ver/<int:id>')
 @login_required
 def ver(id):
@@ -506,10 +495,11 @@ def ver(id):
     conn.close()
     if valuacion is None:
         return redirect(url_for('index'))
-    ctx = base_context()
-    ctx['viendo']  = valuacion
-    ctx['archivos'] = archivos
-    return render_template('index.html', **ctx)
+    return render_template('form.html',
+                           viendo=valuacion,
+                           archivos=archivos,
+                           today=datetime.now().strftime('%Y-%m-%d'),
+                           usuario=session['usuario'])
 
 
 @app.route('/editar/<int:id>')
@@ -521,10 +511,11 @@ def editar(id):
     conn.close()
     if valuacion is None:
         return redirect(url_for('index'))
-    ctx = base_context()
-    ctx['editando'] = valuacion
-    ctx['archivos'] = archivos
-    return render_template('index.html', **ctx)
+    return render_template('form.html',
+                           editando=valuacion,
+                           archivos=archivos,
+                           today=datetime.now().strftime('%Y-%m-%d'),
+                           usuario=session['usuario'])
 
 
 @app.route('/actualizar/<int:id>', methods=['POST'])
