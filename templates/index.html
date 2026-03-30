@@ -424,7 +424,6 @@
                                 <th>Carátula</th>
                                 <th>Dirección</th>
                                 <th>Fecha</th>
-                                <th>Total U$S</th>
                                 <th>Propuesta</th>
                                 <th>Creado por</th>
                                 <th>Acciones</th>
@@ -438,7 +437,6 @@
                                 <td>{{ v.caratula }}</td>
                                 <td>{{ v.direccion }}</td>
                                 <td>{{ v.fecha }}</td>
-                                <td class="number">{{ "{:,.0f}".format(v.total_usd) if v.total_usd else '-' }}</td>
                                 <td class="number propuesta">{{ "{:,.2f}".format(v.propuesta) if v.propuesta else '-' }}</td>
                                 <td class="td-user">{{ v.creado_por or '—' }}</td>
                                 <td>
