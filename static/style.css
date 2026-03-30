@@ -1017,13 +1017,25 @@ tbody td.propuesta {
     display: flex;
     justify-content: space-between;
     align-items: center;
+    background: var(--accent-dim);
+    border: 1px solid #bfdbfe;
+    border-left: 3px solid var(--accent-mid);
+    border-radius: var(--radius);
+    padding: 10px 14px;
+    margin-top: 22px;
+    margin-bottom: 0;
+    transition: var(--transition);
 }
-.collapsible-title:hover { opacity: 0.8; }
+.collapsible-title:hover {
+    background: #dbeafe;
+    border-color: var(--accent);
+}
 
 .collapse-chevron {
-    font-size: 0.7rem;
+    font-size: 0.85rem;
     color: var(--accent);
     margin-left: 8px;
+    font-weight: 700;
 }
 
 /* ---- Tipo + Monto + Propuesta ---- */
