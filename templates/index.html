@@ -403,6 +403,8 @@
                             {% if q or desde or hasta or filtro_usuario %}
                             <a href="{{ url_for('index') }}" class="btn btn-sm btn-edit">Limpiar</a>
                             {% endif %}
+                            <a href="{{ url_for('exportar_excel') }}{% if q or desde or hasta or filtro_usuario %}?{{ ('q=' + q + '&') if q else '' }}{{ ('desde=' + desde + '&') if desde else '' }}{{ ('hasta=' + hasta + '&') if hasta else '' }}{{ ('usuario=' + filtro_usuario) if filtro_usuario else '' }}{% endif %}"
+                                class="btn btn-sm btn-excel">Exportar Excel</a>
                         </div>
                     </div>
                 </form>

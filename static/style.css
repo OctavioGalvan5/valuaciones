@@ -805,6 +805,14 @@ tbody td.propuesta {
     font-size: 0.875rem;
 }
 
+/* ---- Botón Excel ---- */
+.btn-excel {
+    background: #f0fdf4;
+    color: #15803d;
+    border-color: #86efac;
+}
+.btn-excel:hover { background: #dcfce7; border-color: #4ade80; }
+
 /* ---- Archivos adjuntos ---- */
 .archivos-list {
     display: flex;

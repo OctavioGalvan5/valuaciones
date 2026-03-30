@@ -681,6 +681,131 @@ def eliminar_archivo(id):
     return redirect(url_for('editar', id=archivo['valuacion_id']))
 
 
+@app.route('/exportar_excel')
+@login_required
+def exportar_excel():
+    from openpyxl import Workbook
+    from openpyxl.styles import PatternFill, Font, Alignment, Border, Side, numbers
+    from openpyxl.utils import get_column_letter
+
+    # Respetar filtros activos
+    q              = request.args.get('q', '').strip()
+    desde          = request.args.get('desde', '').strip()
+    hasta          = request.args.get('hasta', '').strip()
+    filtro_usuario = request.args.get('usuario', '').strip()
+
+    conditions = ['activa = 1']
+    params = []
+    if q:
+        conditions.append('(catastro ILIKE %s OR expediente ILIKE %s OR caratula ILIKE %s OR direccion ILIKE %s OR denuncia ILIKE %s)')
+        params.extend([f'%{q}%'] * 5)
+    if desde:
+        conditions.append('fecha >= %s')
+        params.append(desde)
+    if hasta:
+        conditions.append('fecha <= %s')
+        params.append(hasta)
+    if filtro_usuario:
+        conditions.append('creado_por = %s')
+        params.append(filtro_usuario)
+
+    conn = get_db()
+    rows = fetchall(conn, f'SELECT * FROM valuaciones WHERE {" AND ".join(conditions)} ORDER BY id DESC', params)
+    conn.close()
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = 'Valuaciones'
+
+    # Estilos
+    header_fill = PatternFill('solid', fgColor='1E3A8A')
+    header_font = Font(bold=True, color='DBEAFE', size=10)
+    header_align = Alignment(horizontal='center', vertical='center', wrap_text=True)
+    alt_fill = PatternFill('solid', fgColor='F8F9FB')
+    border_side = Side(style='thin', color='D8DCE3')
+    cell_border = Border(left=border_side, right=border_side, top=border_side, bottom=border_side)
+    center = Alignment(horizontal='center', vertical='center')
+    right_align = Alignment(horizontal='right', vertical='center')
+    usd_fmt = '#,##0.00'
+
+    COLUMNAS = [
+        ('VR #',            'id',                           10,  'center'),
+        ('Expediente',      'expediente',                   16,  'left'),
+        ('Catastro',        'catastro',                     18,  'left'),
+        ('Tipo Catastro',   'tipo_catastro',                14,  'center'),
+        ('Carátula',        'caratula',                     28,  'left'),
+        ('Dirección',       'direccion',                    32,  'left'),
+        ('Fecha',           'fecha',                        13,  'center'),
+        ('Tipo',            'denuncia',                     13,  'center'),
+        ('Terreno m²',      'terreno_m2',                   13,  'right'),
+        ('Sup. Edif. m²',   'sup_edif_m2',                  13,  'right'),
+        ('U$S/m² Terreno',  'usd_m2_terreno',               15,  'right'),
+        ('U$S/m² Edif.',    'usd_m2_edif',                  13,  'right'),
+        ('Valor Dólar',     'valor_dolar',                  13,  'right'),
+        ('Total U$S Terr.', 'total_usd_terreno',            15,  'right'),
+        ('Total U$S Edif.', 'total_usd_edif',               15,  'right'),
+        ('Total U$S',       'total_usd',                    14,  'right'),
+        ('Propuesta U$S',   'propuesta',                    15,  'right'),
+        ('FOT',             'fot',                          8,   'center'),
+        ('FOS',             'fos',                          8,   'center'),
+        ('Sup. Edif. Total','sup_edif_total',               15,  'right'),
+        ('Pisos Máx.',      'pisos_maximos',                10,  'center'),
+        ('Emprendimiento',  'emprendimiento',               16,  'right'),
+        ('Creado por',      'creado_por',                   14,  'center'),
+        ('Fecha Registro',  'fecha_registro',               18,  'center'),
+        ('Observaciones',   'observaciones',                40,  'left'),
+    ]
+
+    USD_COLS = {'usd_m2_terreno','usd_m2_edif','valor_dolar','total_usd_terreno',
+                'total_usd_edif','total_usd','propuesta','emprendimiento','terreno_m2','sup_edif_m2','sup_edif_total'}
+
+    # Encabezados
+    ws.row_dimensions[1].height = 36
+    for col_idx, (titulo, _, ancho, _align) in enumerate(COLUMNAS, 1):
+        cell = ws.cell(row=1, column=col_idx, value=titulo)
+        cell.fill   = header_fill
+        cell.font   = header_font
+        cell.alignment = header_align
+        cell.border = cell_border
+        ws.column_dimensions[get_column_letter(col_idx)].width = ancho
+
+    # Datos
+    for row_idx, v in enumerate(rows, 2):
+        fill = alt_fill if row_idx % 2 == 0 else PatternFill('solid', fgColor='FFFFFF')
+        for col_idx, (_, campo, _, align) in enumerate(COLUMNAS, 1):
+            valor = v[campo] if campo in v.keys() else None
+            if isinstance(valor, datetime):
+                valor = valor.strftime('%d/%m/%Y %H:%M')
+            cell = ws.cell(row=row_idx, column=col_idx, value=valor)
+            cell.fill   = fill
+            cell.border = cell_border
+            cell.font   = Font(size=9)
+            if align == 'center':
+                cell.alignment = center
+            elif align == 'right':
+                cell.alignment = right_align
+            else:
+                cell.alignment = Alignment(vertical='center', wrap_text=(campo == 'observaciones'))
+            if campo in USD_COLS and valor is not None:
+                cell.number_format = usd_fmt
+
+    # Freeze y autofilter
+    ws.freeze_panes = 'A2'
+    ws.auto_filter.ref = f'A1:{get_column_letter(len(COLUMNAS))}1'
+
+    # Guardar en buffer
+    buf = BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+
+    fecha_hoy = datetime.now().strftime('%Y%m%d')
+    return Response(
+        buf,
+        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        headers={'Content-Disposition': f'attachment; filename="valuaciones_{fecha_hoy}.xlsx"'},
+    )
+
+
 init_db()
 
 if __name__ == '__main__':
