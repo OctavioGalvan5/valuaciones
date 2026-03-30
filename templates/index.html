@@ -301,6 +301,10 @@
                         <a href="{{ url_for('editar', id=viendo.id) }}" class="btn btn-primary">Editar</a>
                         {% else %}
                             {% if editando %}
+                            <form method="POST" action="{{ url_for('desactivar', id=editando.id) }}" style="display:inline"
+                                onsubmit="return confirm('¿Desactivar VR #{{ editando.id }}?')">
+                                <button type="submit" class="btn btn-deactivate">Desactivar</button>
+                            </form>
                             <a href="{{ url_for('index') }}" class="btn btn-danger">Cancelar</a>
                             {% endif %}
                             <button type="button" class="btn btn-warning" onclick="verificar()">Verificar</button>
@@ -441,11 +445,6 @@
                                     <div class="actions-cell">
                                         <a href="{{ url_for('ver', id=v.id) }}" class="btn btn-sm btn-success">Ver</a>
                                         <a href="{{ url_for('editar', id=v.id) }}" class="btn btn-sm btn-edit">Editar</a>
-                                        <form method="POST" action="{{ url_for('desactivar', id=v.id) }}"
-                                            style="display:inline"
-                                            onsubmit="return confirm('Desactivar VR #{{ v.id }}?')">
-                                            <button type="submit" class="btn btn-sm btn-deactivate">Desactivar</button>
-                                        </form>
                                     </div>
                                 </td>
                             </tr>
