@@ -550,7 +550,10 @@
             document.getElementById('calc-total').textContent = total.toLocaleString('es-AR', { maximumFractionDigits: 0 });
             document.getElementById('calc-propuesta').textContent = 'U$S ' + propuesta.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-            document.getElementById('propuesta_editable').value = propuesta.toFixed(2);
+            var propuestaInput = document.getElementById('propuesta_editable');
+            if (!propuestaInput.value) {
+                propuestaInput.value = propuesta.toFixed(2);
+            }
         }
 
         function calcularUrb() {
