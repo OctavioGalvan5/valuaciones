@@ -88,6 +88,15 @@
                                 value="{{ datos.catastro if datos else '' }}" {% if not readonly %}required{% endif %} {% if readonly %}readonly{% endif %}>
                         </div>
                         <div class="form-group">
+                            <label>Tipo de Catastro</label>
+                            <select name="tipo_catastro" class="form-select" {% if readonly %}disabled{% endif %}>
+                                <option value="">Seleccionar...</option>
+                                <option value="Urbano"    {% if datos and datos.tipo_catastro == 'Urbano'    %}selected{% endif %}>Urbano</option>
+                                <option value="Rural"     {% if datos and datos.tipo_catastro == 'Rural'     %}selected{% endif %}>Rural</option>
+                                <option value="Subrural"  {% if datos and datos.tipo_catastro == 'Subrural'  %}selected{% endif %}>Subrural</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
                             <label>Carátula</label>
                             <input type="text" name="caratula" placeholder="Carátula del expediente"
                                 value="{{ datos.caratula if datos else '' }}" {% if readonly %}readonly{% endif %}>
@@ -414,8 +423,6 @@
                                 <th>Total U$S</th>
                                 <th>Propuesta</th>
                                 <th>Creado por</th>
-                                <th>Editado por</th>
-                                <th>Maps</th>
                                 <th>Acciones</th>
                             </tr>
                         </thead>
@@ -430,15 +437,6 @@
                                 <td class="number">{{ "{:,.0f}".format(v.total_usd) if v.total_usd else '-' }}</td>
                                 <td class="number propuesta">{{ "{:,.2f}".format(v.propuesta) if v.propuesta else '-' }}</td>
                                 <td class="td-user">{{ v.creado_por or '—' }}</td>
-                                <td class="td-user td-editado">{{ v.editado_por or '—' }}</td>
-                                <td>
-                                    {% if v.gmaps_zona %}
-                                    <a href="{{ v.gmaps_zona }}" target="_blank" class="maps-link" title="Ver zona">Zona</a>
-                                    {% endif %}
-                                    {% if v.gmaps_frente %}
-                                    <a href="{{ v.gmaps_frente }}" target="_blank" class="maps-link" title="Ver frente">Frente</a>
-                                    {% endif %}
-                                </td>
                                 <td>
                                     <div class="actions-cell">
                                         <a href="{{ url_for('ver', id=v.id) }}" class="btn btn-sm btn-success">Ver</a>
@@ -707,6 +705,13 @@
         // Cerrar modal con Escape
         document.addEventListener('keydown', function (e) {
             if (e.key === 'Escape') { cerrarModal(); cerrarImagen(); }
+        });
+
+        // Evitar que Enter envíe el formulario (excepto en textarea)
+        document.getElementById('form-valuacion').addEventListener('keydown', function (e) {
+            if (e.key === 'Enter' && e.target.tagName !== 'TEXTAREA') {
+                e.preventDefault();
+            }
         });
 
         // ---- Modal de imagen ----

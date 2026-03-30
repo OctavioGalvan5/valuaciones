@@ -140,6 +140,7 @@ def init_db():
         ('activa',                      'INTEGER DEFAULT 1'),
         ('eliminado_por',               'TEXT'),
         ('fecha_eliminacion',           'TEXT'),
+        ('tipo_catastro',               'TEXT'),
     ]:
         execute(conn, f'ALTER TABLE valuaciones ADD COLUMN IF NOT EXISTS {col} {definition}')
 
@@ -413,7 +414,7 @@ def agregar():
     conn = get_db()
     new_id = fetchscalar(conn, '''
         INSERT INTO valuaciones (
-            expediente, caratula, catastro, direccion, fecha,
+            expediente, caratula, catastro, tipo_catastro, direccion, fecha,
             terreno_m2, terreno_frente_lado, terreno_antes_revision, usd_m2_terreno,
             sup_edif_m2, edif_frente_lado, edif_antes_revision, usd_m2_edif,
             valor_dolar,
@@ -425,7 +426,7 @@ def agregar():
             observaciones, latitud, longitud,
             creado_por, activa
         ) VALUES (
-            %s, %s, %s, %s, %s,
+            %s, %s, %s, %s, %s, %s,
             %s, %s, %s, %s,
             %s, %s, %s, %s,
             %s,
@@ -441,6 +442,7 @@ def agregar():
         data.get('expediente', '').strip(),
         data.get('caratula', '').strip(),
         data.get('catastro', '').strip(),
+        data.get('tipo_catastro', '').strip(),
         data.get('direccion', '').strip(),
         data.get('fecha', ''),
         terreno_m2, data.get('terreno_frente_lado', '').strip(),
@@ -556,7 +558,7 @@ def actualizar(id):
     conn = get_db()
     execute(conn, '''
         UPDATE valuaciones SET
-            expediente=%s, caratula=%s, catastro=%s, direccion=%s, fecha=%s,
+            expediente=%s, caratula=%s, catastro=%s, tipo_catastro=%s, direccion=%s, fecha=%s,
             terreno_m2=%s, terreno_frente_lado=%s, terreno_antes_revision=%s, usd_m2_terreno=%s,
             sup_edif_m2=%s, edif_frente_lado=%s, edif_antes_revision=%s, usd_m2_edif=%s,
             valor_dolar=%s,
@@ -572,6 +574,7 @@ def actualizar(id):
         data.get('expediente', '').strip(),
         data.get('caratula', '').strip(),
         data.get('catastro', '').strip(),
+        data.get('tipo_catastro', '').strip(),
         data.get('direccion', '').strip(),
         data.get('fecha', ''),
         terreno_m2, data.get('terreno_frente_lado', '').strip(),
