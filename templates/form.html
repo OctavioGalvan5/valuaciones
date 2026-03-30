@@ -510,10 +510,7 @@
             document.getElementById('calc-total').textContent     = total.toLocaleString('es-AR', { maximumFractionDigits: 0 });
             document.getElementById('calc-propuesta').textContent = 'U$S ' + propuesta.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-            var propuestaInput = document.getElementById('propuesta_editable');
-            if (!propuestaInput.value) {
-                propuestaInput.value = propuesta.toFixed(2);
-            }
+            document.getElementById('propuesta_editable').value = propuesta.toFixed(2);
         }
 
         function calcularUrb() {
@@ -543,13 +540,18 @@
         }
 
         document.addEventListener('DOMContentLoaded', function () {
-            var editandoEl = document.getElementById('editando_id');
-            var viendoEl   = document.getElementById('viendo_id');
+            var editandoEl    = document.getElementById('editando_id');
+            var viendoEl      = document.getElementById('viendo_id');
+            var propuestaInput = document.getElementById('propuesta_editable');
+
+            // Guardar el valor de propuesta del servidor antes de que calcular() lo sobreescriba
+            var propuestaGuardada = propuestaInput ? propuestaInput.value : '';
 
             aplicarModoTipoCatastro();
 
-            if (editandoEl || viendoEl) {
-                calcular();
+            // Restaurar propuesta guardada al cargar registro existente
+            if ((editandoEl || viendoEl) && propuestaGuardada) {
+                propuestaInput.value = propuestaGuardada;
             }
 
             if (viendoEl) {
