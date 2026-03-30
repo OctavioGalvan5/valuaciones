@@ -142,6 +142,12 @@ def init_db():
         ('fecha_eliminacion',           'TEXT'),
         ('tipo_catastro',               'TEXT'),
         ('monto',                       'REAL DEFAULT 0'),
+        ('productiva_hect',             'REAL DEFAULT 0'),
+        ('usd_hect_productiva',         'REAL DEFAULT 0'),
+        ('con_monte_hect',              'REAL DEFAULT 0'),
+        ('usd_hect_con_monte',          'REAL DEFAULT 0'),
+        ('cerros_hect',                 'REAL DEFAULT 0'),
+        ('usd_hect_cerros',             'REAL DEFAULT 0'),
     ]:
         execute(conn, f'ALTER TABLE valuaciones ADD COLUMN IF NOT EXISTS {col} {definition}')
 
@@ -377,9 +383,8 @@ def agregar():
     data = request.form
     usuario_actual = session['usuario']
 
-    terreno_m2  = parse_float(data.get('terreno_m2'))
-    sup_edif_m2 = parse_float(data.get('sup_edif_m2'))
-    usd_m2_terreno = parse_float(data.get('usd_m2_terreno'))
+    tipo_catastro  = data.get('tipo_catastro', '').strip()
+    sup_edif_m2    = parse_float(data.get('sup_edif_m2'))
     usd_m2_edif    = parse_float(data.get('usd_m2_edif'))
     terreno_total  = parse_float(data.get('terreno_total'))
     fot            = parse_float(data.get('fot'))
@@ -391,10 +396,29 @@ def agregar():
     costo_usd_m2_emprendimiento = parse_float(data.get('costo_usd_m2_emprendimiento'))
     emprendimiento = parse_float(data.get('emprendimiento'))
 
-    total_usd_terreno = terreno_m2 * usd_m2_terreno
-    total_usd_edif    = sup_edif_m2 * usd_m2_edif
-    total_usd         = total_usd_terreno + total_usd_edif
-    propuesta         = parse_float(data.get('propuesta')) or total_usd * 1.10
+    if tipo_catastro == 'Rural':
+        terreno_m2     = 0
+        usd_m2_terreno = 0
+        productiva_hect     = parse_float(data.get('productiva_hect'))
+        usd_hect_productiva = parse_float(data.get('usd_hect_productiva'))
+        con_monte_hect      = parse_float(data.get('con_monte_hect'))
+        usd_hect_con_monte  = parse_float(data.get('usd_hect_con_monte'))
+        cerros_hect         = parse_float(data.get('cerros_hect'))
+        usd_hect_cerros     = parse_float(data.get('usd_hect_cerros'))
+        total_usd_terreno = (productiva_hect * usd_hect_productiva +
+                             con_monte_hect   * usd_hect_con_monte  +
+                             cerros_hect      * usd_hect_cerros)
+    else:
+        terreno_m2     = parse_float(data.get('terreno_m2'))
+        usd_m2_terreno = parse_float(data.get('usd_m2_terreno'))
+        productiva_hect = usd_hect_productiva = 0
+        con_monte_hect  = usd_hect_con_monte  = 0
+        cerros_hect     = usd_hect_cerros     = 0
+        total_usd_terreno = terreno_m2 * usd_m2_terreno
+
+    total_usd_edif = sup_edif_m2 * usd_m2_edif
+    total_usd      = total_usd_terreno + total_usd_edif
+    propuesta      = parse_float(data.get('propuesta')) or total_usd * 1.10
 
     gmaps_zona   = data.get('gmaps_zona', '').strip()
     gmaps_frente = data.get('gmaps_frente', '').strip()
@@ -405,6 +429,9 @@ def agregar():
         INSERT INTO valuaciones (
             expediente, caratula, catastro, tipo_catastro, direccion, fecha,
             terreno_m2, terreno_frente_lado, terreno_antes_revision, usd_m2_terreno,
+            productiva_hect, usd_hect_productiva,
+            con_monte_hect,  usd_hect_con_monte,
+            cerros_hect,     usd_hect_cerros,
             sup_edif_m2, edif_frente_lado, edif_antes_revision, usd_m2_edif,
             valor_dolar,
             total_usd_terreno, total_usd_edif, total_usd, propuesta,
@@ -417,6 +444,9 @@ def agregar():
         ) VALUES (
             %s, %s, %s, %s, %s, %s,
             %s, %s, %s, %s,
+            %s, %s,
+            %s, %s,
+            %s, %s,
             %s, %s, %s, %s,
             %s,
             %s, %s, %s, %s,
@@ -431,11 +461,14 @@ def agregar():
         data.get('expediente', '').strip(),
         data.get('caratula', '').strip(),
         data.get('catastro', '').strip(),
-        data.get('tipo_catastro', '').strip(),
+        tipo_catastro,
         data.get('direccion', '').strip(),
         data.get('fecha', ''),
         terreno_m2, data.get('terreno_frente_lado', '').strip(),
         data.get('terreno_antes_revision', '').strip(), usd_m2_terreno,
+        productiva_hect, usd_hect_productiva,
+        con_monte_hect,  usd_hect_con_monte,
+        cerros_hect,     usd_hect_cerros,
         sup_edif_m2, data.get('edif_frente_lado', '').strip(),
         data.get('edif_antes_revision', '').strip(), usd_m2_edif,
         valor_dolar,
@@ -543,9 +576,8 @@ def actualizar(id):
     data = request.form
     usuario_actual = session['usuario']
 
-    terreno_m2  = parse_float(data.get('terreno_m2'))
-    sup_edif_m2 = parse_float(data.get('sup_edif_m2'))
-    usd_m2_terreno = parse_float(data.get('usd_m2_terreno'))
+    tipo_catastro  = data.get('tipo_catastro', '').strip()
+    sup_edif_m2    = parse_float(data.get('sup_edif_m2'))
     usd_m2_edif    = parse_float(data.get('usd_m2_edif'))
     terreno_total  = parse_float(data.get('terreno_total'))
     fot            = parse_float(data.get('fot'))
@@ -557,10 +589,29 @@ def actualizar(id):
     costo_usd_m2_emprendimiento = parse_float(data.get('costo_usd_m2_emprendimiento'))
     emprendimiento = parse_float(data.get('emprendimiento'))
 
-    total_usd_terreno = terreno_m2 * usd_m2_terreno
-    total_usd_edif    = sup_edif_m2 * usd_m2_edif
-    total_usd         = total_usd_terreno + total_usd_edif
-    propuesta         = parse_float(data.get('propuesta')) or total_usd * 1.10
+    if tipo_catastro == 'Rural':
+        terreno_m2     = 0
+        usd_m2_terreno = 0
+        productiva_hect     = parse_float(data.get('productiva_hect'))
+        usd_hect_productiva = parse_float(data.get('usd_hect_productiva'))
+        con_monte_hect      = parse_float(data.get('con_monte_hect'))
+        usd_hect_con_monte  = parse_float(data.get('usd_hect_con_monte'))
+        cerros_hect         = parse_float(data.get('cerros_hect'))
+        usd_hect_cerros     = parse_float(data.get('usd_hect_cerros'))
+        total_usd_terreno = (productiva_hect * usd_hect_productiva +
+                             con_monte_hect   * usd_hect_con_monte  +
+                             cerros_hect      * usd_hect_cerros)
+    else:
+        terreno_m2     = parse_float(data.get('terreno_m2'))
+        usd_m2_terreno = parse_float(data.get('usd_m2_terreno'))
+        productiva_hect = usd_hect_productiva = 0
+        con_monte_hect  = usd_hect_con_monte  = 0
+        cerros_hect     = usd_hect_cerros     = 0
+        total_usd_terreno = terreno_m2 * usd_m2_terreno
+
+    total_usd_edif = sup_edif_m2 * usd_m2_edif
+    total_usd      = total_usd_terreno + total_usd_edif
+    propuesta      = parse_float(data.get('propuesta')) or total_usd * 1.10
 
     gmaps_zona   = data.get('gmaps_zona', '').strip()
     gmaps_frente = data.get('gmaps_frente', '').strip()
@@ -571,6 +622,9 @@ def actualizar(id):
         UPDATE valuaciones SET
             expediente=%s, caratula=%s, catastro=%s, tipo_catastro=%s, direccion=%s, fecha=%s,
             terreno_m2=%s, terreno_frente_lado=%s, terreno_antes_revision=%s, usd_m2_terreno=%s,
+            productiva_hect=%s, usd_hect_productiva=%s,
+            con_monte_hect=%s,  usd_hect_con_monte=%s,
+            cerros_hect=%s,     usd_hect_cerros=%s,
             sup_edif_m2=%s, edif_frente_lado=%s, edif_antes_revision=%s, usd_m2_edif=%s,
             valor_dolar=%s,
             total_usd_terreno=%s, total_usd_edif=%s, total_usd=%s, propuesta=%s,
@@ -585,11 +639,14 @@ def actualizar(id):
         data.get('expediente', '').strip(),
         data.get('caratula', '').strip(),
         data.get('catastro', '').strip(),
-        data.get('tipo_catastro', '').strip(),
+        tipo_catastro,
         data.get('direccion', '').strip(),
         data.get('fecha', ''),
         terreno_m2, data.get('terreno_frente_lado', '').strip(),
         data.get('terreno_antes_revision', '').strip(), usd_m2_terreno,
+        productiva_hect, usd_hect_productiva,
+        con_monte_hect,  usd_hect_con_monte,
+        cerros_hect,     usd_hect_cerros,
         sup_edif_m2, data.get('edif_frente_lado', '').strip(),
         data.get('edif_antes_revision', '').strip(), usd_m2_edif,
         valor_dolar,

@@ -103,7 +103,8 @@
                         </div>
                         <div class="form-group">
                             <label>Tipo de Catastro</label>
-                            <select name="tipo_catastro" class="form-select" {% if readonly %}disabled{% endif %}>
+                            <select name="tipo_catastro" id="tipo_catastro" class="form-select"
+                                onchange="aplicarModoTipoCatastro()" {% if readonly %}disabled{% endif %}>
                                 <option value="">Seleccionar...</option>
                                 <option value="Urbano"   {% if datos and datos.tipo_catastro == 'Urbano'   %}selected{% endif %}>Urbano</option>
                                 <option value="Rural"    {% if datos and datos.tipo_catastro == 'Rural'    %}selected{% endif %}>Rural</option>
@@ -127,16 +128,17 @@
                         <thead>
                             <tr>
                                 <th class="row-header"></th>
-                                <th>m²</th>
+                                <th>Cantidad</th>
                                 <th>Frente / Lado</th>
                                 <th>Antes / Revisión</th>
-                                <th>U$S / m²</th>
+                                <th>U$S / unidad</th>
                                 <th>Total U$S</th>
                             </tr>
                         </thead>
                         <tbody>
-                            <tr>
-                                <td class="row-header">Terreno</td>
+                            <!-- Fila Terreno (Urbano / Subrural) -->
+                            <tr id="row-terreno">
+                                <td class="row-header">Terreno m²</td>
                                 <td><input type="number" name="terreno_m2" id="terreno_m2" step="0.01"
                                         placeholder="0.00" value="{{ datos.terreno_m2 if datos else '' }}"
                                         oninput="calcular()" {% if readonly %}readonly{% endif %}></td>
@@ -149,8 +151,43 @@
                                         oninput="calcular()" {% if readonly %}readonly{% endif %}></td>
                                 <td class="calc-cell" id="calc-terreno">0</td>
                             </tr>
+                            <!-- Filas Rural -->
+                            <tr id="row-productiva" style="display:none;">
+                                <td class="row-header">Productiva hect.</td>
+                                <td><input type="number" name="productiva_hect" id="productiva_hect" step="0.01"
+                                        placeholder="0.00" value="{{ datos.productiva_hect if datos else '' }}"
+                                        oninput="calcular()" {% if readonly %}readonly{% endif %}></td>
+                                <td colspan="2"></td>
+                                <td><input type="number" name="usd_hect_productiva" id="usd_hect_productiva" step="0.01"
+                                        placeholder="0.00" value="{{ datos.usd_hect_productiva if datos else '' }}"
+                                        oninput="calcular()" {% if readonly %}readonly{% endif %}></td>
+                                <td class="calc-cell" id="calc-productiva">0</td>
+                            </tr>
+                            <tr id="row-monte" style="display:none;">
+                                <td class="row-header">Con Monte hect.</td>
+                                <td><input type="number" name="con_monte_hect" id="con_monte_hect" step="0.01"
+                                        placeholder="0.00" value="{{ datos.con_monte_hect if datos else '' }}"
+                                        oninput="calcular()" {% if readonly %}readonly{% endif %}></td>
+                                <td colspan="2"></td>
+                                <td><input type="number" name="usd_hect_con_monte" id="usd_hect_con_monte" step="0.01"
+                                        placeholder="0.00" value="{{ datos.usd_hect_con_monte if datos else '' }}"
+                                        oninput="calcular()" {% if readonly %}readonly{% endif %}></td>
+                                <td class="calc-cell" id="calc-monte">0</td>
+                            </tr>
+                            <tr id="row-cerros" style="display:none;">
+                                <td class="row-header">Cerros hect.</td>
+                                <td><input type="number" name="cerros_hect" id="cerros_hect" step="0.01"
+                                        placeholder="0.00" value="{{ datos.cerros_hect if datos else '' }}"
+                                        oninput="calcular()" {% if readonly %}readonly{% endif %}></td>
+                                <td colspan="2"></td>
+                                <td><input type="number" name="usd_hect_cerros" id="usd_hect_cerros" step="0.01"
+                                        placeholder="0.00" value="{{ datos.usd_hect_cerros if datos else '' }}"
+                                        oninput="calcular()" {% if readonly %}readonly{% endif %}></td>
+                                <td class="calc-cell" id="calc-cerros">0</td>
+                            </tr>
+                            <!-- Sup. Edificada (siempre visible) -->
                             <tr>
-                                <td class="row-header">Sup. Edif.</td>
+                                <td class="row-header">Sup. Edif. m²</td>
                                 <td><input type="number" name="sup_edif_m2" id="sup_edif_m2" step="0.01"
                                         placeholder="0.00" value="{{ datos.sup_edif_m2 if datos else '' }}"
                                         oninput="calcular()" {% if readonly %}readonly{% endif %}></td>
@@ -416,18 +453,59 @@
     <script>
         var pendienteGuardar = false;
 
+        function esRural() {
+            var sel = document.getElementById('tipo_catastro');
+            return sel && sel.value === 'Rural';
+        }
+
+        function aplicarModoTipoCatastro() {
+            var rural = esRural();
+            document.getElementById('row-terreno').style.display    = rural ? 'none' : '';
+            document.getElementById('row-productiva').style.display = rural ? '' : 'none';
+            document.getElementById('row-monte').style.display      = rural ? '' : 'none';
+            document.getElementById('row-cerros').style.display     = rural ? '' : 'none';
+            calcular();
+        }
+
         function calcular() {
-            var terrenoM2    = parseFloat(document.getElementById('terreno_m2').value)    || 0;
-            var usdTerreno   = parseFloat(document.getElementById('usd_m2_terreno').value) || 0;
-            var edifM2       = parseFloat(document.getElementById('sup_edif_m2').value)   || 0;
-            var usdEdif      = parseFloat(document.getElementById('usd_m2_edif').value)   || 0;
+            var edifM2    = parseFloat(document.getElementById('sup_edif_m2').value)  || 0;
+            var usdEdif   = parseFloat(document.getElementById('usd_m2_edif').value)  || 0;
+            var totalEdif = edifM2 * usdEdif;
 
-            var totalTerreno = terrenoM2 * usdTerreno;
-            var totalEdif    = edifM2 * usdEdif;
-            var total        = totalTerreno + totalEdif;
-            var propuesta    = total * 1.10;
+            var totalTerrenoEquiv = 0;
 
-            document.getElementById('calc-terreno').textContent   = totalTerreno.toLocaleString('es-AR', { maximumFractionDigits: 0 });
+            if (esRural()) {
+                var prodHect  = parseFloat(document.getElementById('productiva_hect').value)    || 0;
+                var usdProd   = parseFloat(document.getElementById('usd_hect_productiva').value) || 0;
+                var monteHect = parseFloat(document.getElementById('con_monte_hect').value)      || 0;
+                var usdMonte  = parseFloat(document.getElementById('usd_hect_con_monte').value)  || 0;
+                var cerroHect = parseFloat(document.getElementById('cerros_hect').value)         || 0;
+                var usdCerro  = parseFloat(document.getElementById('usd_hect_cerros').value)     || 0;
+
+                var tProd  = prodHect  * usdProd;
+                var tMonte = monteHect * usdMonte;
+                var tCerro = cerroHect * usdCerro;
+                totalTerrenoEquiv = tProd + tMonte + tCerro;
+
+                document.getElementById('calc-productiva').textContent = tProd.toLocaleString('es-AR',  { maximumFractionDigits: 0 });
+                document.getElementById('calc-monte').textContent      = tMonte.toLocaleString('es-AR', { maximumFractionDigits: 0 });
+                document.getElementById('calc-cerros').textContent     = tCerro.toLocaleString('es-AR', { maximumFractionDigits: 0 });
+                document.getElementById('calc-terreno').textContent    = '—';
+            } else {
+                var terrenoM2  = parseFloat(document.getElementById('terreno_m2').value)     || 0;
+                var usdTerreno = parseFloat(document.getElementById('usd_m2_terreno').value) || 0;
+                var tTerreno   = terrenoM2 * usdTerreno;
+                totalTerrenoEquiv = tTerreno;
+
+                document.getElementById('calc-terreno').textContent    = tTerreno.toLocaleString('es-AR', { maximumFractionDigits: 0 });
+                document.getElementById('calc-productiva').textContent = '—';
+                document.getElementById('calc-monte').textContent      = '—';
+                document.getElementById('calc-cerros').textContent     = '—';
+            }
+
+            var total     = totalTerrenoEquiv + totalEdif;
+            var propuesta = total * 1.10;
+
             document.getElementById('calc-edif').textContent      = totalEdif.toLocaleString('es-AR', { maximumFractionDigits: 0 });
             document.getElementById('calc-total').textContent     = total.toLocaleString('es-AR', { maximumFractionDigits: 0 });
             document.getElementById('calc-propuesta').textContent = 'U$S ' + propuesta.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -467,6 +545,8 @@
         document.addEventListener('DOMContentLoaded', function () {
             var editandoEl = document.getElementById('editando_id');
             var viendoEl   = document.getElementById('viendo_id');
+
+            aplicarModoTipoCatastro();
 
             if (editandoEl || viendoEl) {
                 calcular();
