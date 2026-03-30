@@ -68,12 +68,20 @@
                                 {% endfor %}
                             </select>
                         </div>
+                        <div class="filtro-group">
+                            <label>Estado</label>
+                            <select name="estado" class="form-select">
+                                <option value="activas"      {% if estado == 'activas'      %}selected{% endif %}>Activas</option>
+                                <option value="desactivadas" {% if estado == 'desactivadas' %}selected{% endif %}>Desactivadas</option>
+                                <option value="todas"        {% if estado == 'todas'        %}selected{% endif %}>Todas</option>
+                            </select>
+                        </div>
                         <div class="filtro-actions">
                             <button type="submit" class="btn btn-primary btn-sm">Filtrar</button>
-                            {% if q or desde or hasta or filtro_usuario %}
+                            {% if q or desde or hasta or filtro_usuario or estado != 'activas' %}
                             <a href="{{ url_for('index') }}" class="btn btn-sm btn-edit">Limpiar</a>
                             {% endif %}
-                            <a href="{{ url_for('exportar_excel') }}{% if q or desde or hasta or filtro_usuario %}?{{ ('q=' + q + '&') if q else '' }}{{ ('desde=' + desde + '&') if desde else '' }}{{ ('hasta=' + hasta + '&') if hasta else '' }}{{ ('usuario=' + filtro_usuario) if filtro_usuario else '' }}{% endif %}"
+                            <a href="{{ url_for('exportar_excel') }}?{{ ('q=' + q + '&') if q else '' }}{{ ('desde=' + desde + '&') if desde else '' }}{{ ('hasta=' + hasta + '&') if hasta else '' }}{{ ('usuario=' + filtro_usuario + '&') if filtro_usuario else '' }}estado={{ estado }}"
                                 class="btn btn-sm btn-excel">Exportar Excel</a>
                         </div>
                     </div>
@@ -103,9 +111,9 @@
                         </thead>
                         <tbody>
                             {% for v in valuaciones %}
-                            <tr>
+                            <tr {% if not v.activa %}class="row-desactivada"{% endif %}>
                                 <td class="number">{{ v.id }}</td>
-                                <td>{{ v.catastro }}</td>
+                                <td>{{ v.catastro }}{% if not v.activa %} <span class="badge-desactivada">Desactivada</span>{% endif %}</td>
                                 <td>{{ v.caratula }}</td>
                                 <td>{{ v.direccion }}</td>
                                 <td>{{ v.fecha }}</td>
@@ -114,7 +122,18 @@
                                 <td>
                                     <div class="actions-cell">
                                         <a href="{{ url_for('ver', id=v.id) }}" class="btn btn-sm btn-success">Ver</a>
+                                        {% if v.activa %}
                                         <a href="{{ url_for('editar', id=v.id) }}" class="btn btn-sm btn-edit">Editar</a>
+                                        <form method="POST" action="{{ url_for('desactivar', id=v.id) }}" style="display:inline"
+                                            onsubmit="return confirm('¿Desactivar VR #{{ v.id }}?')">
+                                            <button type="submit" class="btn btn-sm btn-deactivate">Desactivar</button>
+                                        </form>
+                                        {% else %}
+                                        <form method="POST" action="{{ url_for('reactivar', id=v.id) }}" style="display:inline"
+                                            onsubmit="return confirm('¿Reactivar VR #{{ v.id }}?')">
+                                            <button type="submit" class="btn btn-sm btn-success">Reactivar</button>
+                                        </form>
+                                        {% endif %}
                                     </div>
                                 </td>
                             </tr>

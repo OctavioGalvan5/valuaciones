@@ -270,11 +270,18 @@ def index():
     desde          = request.args.get('desde', '').strip()
     hasta          = request.args.get('hasta', '').strip()
     filtro_usuario = request.args.get('usuario', '').strip()
+    estado         = request.args.get('estado', 'activas').strip()
     page           = max(1, int(request.args.get('page', 1) or 1))
 
-    conditions = ['activa = 1']
-    params = []
+    conditions = []
+    if estado == 'desactivadas':
+        conditions.append('activa = 0')
+    elif estado == 'todas':
+        pass  # sin filtro de activa
+    else:
+        conditions.append('activa = 1')
 
+    params = []
     if q:
         conditions.append('(catastro ILIKE %s OR expediente ILIKE %s OR caratula ILIKE %s OR direccion ILIKE %s OR denuncia ILIKE %s)')
         params.extend([f'%{q}%'] * 5)
@@ -288,7 +295,7 @@ def index():
         conditions.append('creado_por = %s')
         params.append(filtro_usuario)
 
-    where = ' AND '.join(conditions)
+    where = ' AND '.join(conditions) if conditions else '1=1'
     conn = get_db()
     total = fetchscalar(conn, f'SELECT COUNT(*) FROM valuaciones WHERE {where}', params)
     valuaciones = fetchall(conn,
@@ -304,9 +311,9 @@ def index():
                            usuario=session['usuario'],
                            q=q, desde=desde, hasta=hasta,
                            filtro_usuario=filtro_usuario,
+                           estado=estado,
                            page=page, total_pages=total_pages, total=total,
-                           usuarios_lista=[u['username'] for u in usuarios_db],
-                           archivos=[])
+                           usuarios_lista=[u['username'] for u in usuarios_db])
 
 
 @app.route('/verificar_catastro', methods=['POST'])
@@ -475,7 +482,19 @@ def desactivar(id):
         (session['usuario'], datetime.now().strftime('%Y-%m-%d %H:%M'), id))
     conn.commit()
     conn.close()
-    return redirect(url_for('index'))
+    return redirect(request.referrer or url_for('index'))
+
+
+@app.route('/reactivar/<int:id>', methods=['POST'])
+@login_required
+def reactivar(id):
+    conn = get_db()
+    execute(conn,
+        'UPDATE valuaciones SET activa = 1, eliminado_por = NULL, fecha_eliminacion = NULL WHERE id = %s',
+        (id,))
+    conn.commit()
+    conn.close()
+    return redirect(request.referrer or url_for('index'))
 
 
 @app.route('/nueva')

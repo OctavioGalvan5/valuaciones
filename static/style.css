@@ -1049,6 +1049,25 @@ tbody td.propuesta {
     box-shadow: 0 0 0 3px rgba(29, 78, 216, 0.1);
 }
 
+/* ---- Filas desactivadas ---- */
+tbody tr.row-desactivada { opacity: 0.55; }
+tbody tr.row-desactivada:hover { opacity: 0.75; background: #fff8f8; }
+
+.badge-desactivada {
+    display: inline-block;
+    font-size: 0.6rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    padding: 1px 6px;
+    border-radius: 3px;
+    background: var(--red-dim);
+    color: var(--red);
+    border: 1px solid #fca5a5;
+    vertical-align: middle;
+    margin-left: 5px;
+}
+
 /* ---- Calculated fields highlight ---- */
 #sup_edif_total_calc,
 #pisos_maximos,
