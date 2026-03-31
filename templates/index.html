@@ -15,7 +15,7 @@
         <h1>Sistema de Valuaciones</h1>
         <div class="header-stats">
             <div class="stat-badge">
-                Total registros: <span class="num">{{ total }}</span>
+                Total expedientes: <span class="num">{{ total }}</span>
             </div>
             <div class="stat-badge">
                 <span class="header-user-icon">&#9679;</span> {{ usuario }}
@@ -26,7 +26,6 @@
 
     <div class="container">
 
-        <!-- Flash messages -->
         {% with messages = get_flashed_messages(with_categories=true) %}
         {% if messages %}
         {% for category, message in messages %}
@@ -35,10 +34,9 @@
         {% endif %}
         {% endwith %}
 
-        <!-- Tabla de registros -->
         <div class="card">
             <div class="card-header" style="display:flex; align-items:center; justify-content:space-between;">
-                <span>Registros de Valuaciones</span>
+                <span>Expedientes</span>
                 <a href="{{ url_for('nueva') }}" class="btn btn-primary btn-sm">+ Nueva Valuación</a>
             </div>
             <div class="card-body">
@@ -89,48 +87,50 @@
 
                 <!-- Info resultados -->
                 <div class="resultados-info">
-                    Mostrando {{ valuaciones|length }} de {{ total }} registro{{ 's' if total != 1 else '' }}
+                    Mostrando {{ expedientes|length }} de {{ total }} expediente{{ 's' if total != 1 else '' }}
                     {% if q or desde or hasta or filtro_usuario %}&nbsp;&mdash; filtros activos{% endif %}
                     &nbsp;&middot;&nbsp; Página {{ page }} de {{ total_pages }}
                 </div>
 
-                {% if valuaciones|length > 0 %}
+                {% if expedientes|length > 0 %}
                 <div class="table-wrapper">
                     <table id="tabla-valuaciones">
                         <thead>
                             <tr>
-                                <th>VR</th>
-                                <th>Catastro</th>
+                                <th>VR(s)</th>
+                                <th>Expediente</th>
                                 <th>Carátula</th>
-                                <th>Dirección</th>
-                                <th>Fecha</th>
-                                <th>Propuesta</th>
+                                <th>Catastros</th>
                                 <th>Creado por</th>
                                 <th>Acciones</th>
                             </tr>
                         </thead>
                         <tbody>
-                            {% for v in valuaciones %}
-                            <tr {% if not v.activa %}class="row-desactivada"{% endif %}>
-                                <td class="number">{{ v.id }}</td>
-                                <td>{{ v.catastro }}{% if not v.activa %} <span class="badge-desactivada">Desactivada</span>{% endif %}</td>
-                                <td>{{ v.caratula }}</td>
-                                <td>{{ v.direccion }}</td>
-                                <td>{{ v.fecha }}</td>
-                                <td class="number propuesta">{{ "{:,.2f}".format(v.propuesta) if v.propuesta else '-' }}</td>
-                                <td class="td-user">{{ v.creado_por or '—' }}</td>
+                            {% for e in expedientes %}
+                            <tr {% if not e.activa %}class="row-desactivada"{% endif %}>
+                                <td class="number" style="font-size:0.82rem; color:#6b7280;">
+                                    {{ e.vr_numeros or '—' }}
+                                </td>
+                                <td>
+                                    <a href="{{ url_for('expediente_detail', exp_id=e.id) }}" class="link-expediente">
+                                        {{ e.expediente or '—' }}
+                                    </a>
+                                    {% if not e.activa %} <span class="badge-desactivada">Desactivada</span>{% endif %}
+                                </td>
+                                <td>{{ e.caratula or '—' }}</td>
+                                <td class="number">{{ e.num_catastros }}</td>
+                                <td class="td-user">{{ e.creado_por or '—' }}</td>
                                 <td>
                                     <div class="actions-cell">
-                                        <a href="{{ url_for('ver', id=v.id) }}" class="btn btn-sm btn-success">Ver</a>
-                                        {% if v.activa %}
-                                        <a href="{{ url_for('editar', id=v.id) }}" class="btn btn-sm btn-edit">Editar</a>
-                                        <form method="POST" action="{{ url_for('desactivar', id=v.id) }}" style="display:inline"
-                                            onsubmit="return confirm('¿Desactivar VR #{{ v.id }}?')">
+                                        <a href="{{ url_for('expediente_detail', exp_id=e.id) }}" class="btn btn-sm btn-success">Ver</a>
+                                        {% if e.activa %}
+                                        <form method="POST" action="{{ url_for('desactivar', exp_id=e.id) }}" style="display:inline"
+                                            onsubmit="return confirm('¿Desactivar expediente {{ e.expediente }}?')">
                                             <button type="submit" class="btn btn-sm btn-deactivate">Desactivar</button>
                                         </form>
                                         {% else %}
-                                        <form method="POST" action="{{ url_for('reactivar', id=v.id) }}" style="display:inline"
-                                            onsubmit="return confirm('¿Reactivar VR #{{ v.id }}?')">
+                                        <form method="POST" action="{{ url_for('reactivar', exp_id=e.id) }}" style="display:inline"
+                                            onsubmit="return confirm('¿Reactivar expediente {{ e.expediente }}?')">
                                             <button type="submit" class="btn btn-sm btn-success">Reactivar</button>
                                         </form>
                                         {% endif %}
@@ -172,7 +172,7 @@
 
                 {% else %}
                 <div class="empty-state">
-                    <p>No se encontraron registros{% if q or desde or hasta or filtro_usuario %} con los filtros aplicados{% endif %}.</p>
+                    <p>No se encontraron expedientes{% if q or desde or hasta or filtro_usuario %} con los filtros aplicados{% endif %}.</p>
                 </div>
                 {% endif %}
             </div>

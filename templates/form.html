@@ -7,6 +7,7 @@
     <title>
         {% if viendo %}Ver VR #{{ viendo.id }}
         {% elif editando %}Editar VR #{{ editando.id }}
+        {% elif expediente_obj %}Nuevo Catastro &mdash; Exp. {{ expediente_obj.expediente }}
         {% else %}Nueva Valuación
         {% endif %} — Sistema de Valuaciones
     </title>
@@ -20,11 +21,16 @@
         <h1>
             {% if viendo %}Ver Valuación &mdash; VR #{{ viendo.id }}
             {% elif editando %}Editar Valuación &mdash; VR #{{ editando.id }}
+            {% elif expediente_obj %}Nuevo Catastro &mdash; Exp. {{ expediente_obj.expediente }}
             {% else %}Nueva Valuación
             {% endif %}
         </h1>
         <div class="header-stats">
+            {% if expediente_obj %}
+            <a href="{{ url_for('expediente_detail', exp_id=expediente_obj.id) }}" class="btn-logout">← Volver al expediente</a>
+            {% else %}
             <a href="{{ url_for('index') }}" class="btn-logout">← Volver a lista</a>
+            {% endif %}
             <div class="stat-badge">
                 <span class="header-user-icon">&#9679;</span> {{ usuario }}
             </div>
@@ -51,26 +57,36 @@
             <div class="card-header">
                 {% if viendo %}Ver Valuación &mdash; VR #{{ viendo.id }}
                 {% elif editando %}Editar Valuación &mdash; VR #{{ editando.id }}
+                {% elif expediente_obj %}Nuevo Catastro &mdash; Exp. {{ expediente_obj.expediente }}
                 {% else %}Nueva Valuación
                 {% endif %}
             </div>
             <div class="card-body">
+
+                {# Determinar modo y datos #}
+                {% if viendo %}
+                {% set readonly = true %}
+                {% set datos = viendo %}
+                {% elif editando %}
+                {% set readonly = false %}
+                {% set datos = editando %}
+                {% else %}
+                {% set readonly = false %}
+                {% set datos = none %}
+                {% endif %}
+
                 <form id="form-valuacion" method="POST" enctype="multipart/form-data"
-                    action="{% if editando %}{{ url_for('actualizar', id=editando.id) }}{% else %}{{ url_for('agregar') }}{% endif %}">
+                    action="
+                    {%- if editando -%}{{ url_for('actualizar', cat_id=editando.id) }}
+                    {%- elif expediente_obj -%}{{ url_for('guardar_catastro', exp_id=expediente_obj.id) }}
+                    {%- else -%}{{ url_for('agregar') }}
+                    {%- endif -%}">
 
                     {% if editando %}
                     <input type="hidden" id="editando_id" value="{{ editando.id }}">
                     {% endif %}
                     {% if viendo %}
                     <input type="hidden" id="viendo_id" value="{{ viendo.id }}">
-                    {% set readonly = true %}
-                    {% set datos = viendo %}
-                    {% elif editando %}
-                    {% set readonly = false %}
-                    {% set datos = editando %}
-                    {% else %}
-                    {% set readonly = false %}
-                    {% set datos = none %}
                     {% endif %}
 
                     <!-- Datos del Expediente -->
@@ -82,6 +98,19 @@
                             <label>N° de VR</label>
                             <input type="text" value="{% if datos %}{{ datos.id }}{% else %}Auto{% endif %}" readonly>
                         </div>
+
+                        {% if expediente_obj %}
+                        {# Expediente existente: mostrar como readonly #}
+                        <div class="form-group">
+                            <label>Expediente</label>
+                            <input type="text" value="{{ expediente_obj.expediente or '—' }}" readonly>
+                        </div>
+                        <div class="form-group">
+                            <label>Carátula</label>
+                            <input type="text" value="{{ expediente_obj.caratula or '—' }}" readonly>
+                        </div>
+                        {% else %}
+                        {# Nueva valuación: campos editables #}
                         <div class="form-group">
                             <label>Expediente</label>
                             <input type="text" name="expediente" placeholder="123456/12"
@@ -92,6 +121,7 @@
                             <input type="text" name="caratula" placeholder="Carátula del expediente"
                                 value="{{ datos.caratula if datos else '' }}" {% if readonly %}readonly{% endif %}>
                         </div>
+                        {% endif %}
                     </div>
 
                     <div class="section-subtitle" style="margin-top:14px;">Inmueble</div>
@@ -323,7 +353,7 @@
                     <div class="form-grid">
                         <div class="form-group">
                             <label>Creado por</label>
-                            <input type="text" value="{{ datos.creado_por or '—' }}" readonly>
+                            <input type="text" value="{{ (expediente_obj.creado_por if expediente_obj else datos.get('creado_por', '')) or '—' }}" readonly>
                         </div>
                         <div class="form-group">
                             <label>Última edición</label>
@@ -353,15 +383,13 @@
 
                     <div class="form-actions">
                         {% if viendo %}
-                        <a href="{{ url_for('index') }}" class="btn btn-danger">Volver</a>
-                        <a href="{{ url_for('editar', id=viendo.id) }}" class="btn btn-primary">Editar</a>
+                        <a href="{{ url_for('expediente_detail', exp_id=expediente_obj.id) }}" class="btn btn-danger">Volver</a>
+                        <a href="{{ url_for('editar', cat_id=viendo.id) }}" class="btn btn-primary">Editar</a>
                         {% else %}
                             {% if editando %}
-                            <form method="POST" action="{{ url_for('desactivar', id=editando.id) }}" style="display:inline"
-                                onsubmit="return confirm('¿Desactivar VR #{{ editando.id }}?')">
-                                <button type="submit" class="btn btn-deactivate">Desactivar</button>
-                            </form>
-                            <a href="{{ url_for('index') }}" class="btn btn-danger">Cancelar</a>
+                            <a href="{{ url_for('expediente_detail', exp_id=expediente_obj.id) }}" class="btn btn-danger">Cancelar</a>
+                            {% elif expediente_obj %}
+                            <a href="{{ url_for('expediente_detail', exp_id=expediente_obj.id) }}" class="btn btn-danger">Cancelar</a>
                             {% else %}
                             <a href="{{ url_for('index') }}" class="btn btn-danger">Cancelar</a>
                             {% endif %}
@@ -411,7 +439,7 @@
                 {% endif %}
 
                 {% if editando %}
-                <form method="POST" action="{{ url_for('subir_archivo', valuacion_id=datos.id) }}"
+                <form method="POST" action="{{ url_for('subir_archivo', catastro_id=datos.id) }}"
                     enctype="multipart/form-data" class="upload-form">
                     <input type="file" name="archivo" class="upload-input"
                         accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png" required>
@@ -529,11 +557,11 @@
         }
 
         function calcularEmprendimiento() {
-            var terrenoTotal = parseFloat(document.getElementById('terreno_total').value)                   || 0;
-            var fos          = parseFloat(document.getElementById('fos').value)                             || 0;
-            var pisosMaximos = parseFloat(document.getElementById('pisos_maximos').value)                   || 0;
-            var porcentaje   = parseFloat(document.getElementById('porcentaje_emprendimiento').value)       || 0;
-            var costoM2      = parseFloat(document.getElementById('costo_usd_m2_emprendimiento').value)     || 0;
+            var terrenoTotal = parseFloat(document.getElementById('terreno_total').value)               || 0;
+            var fos          = parseFloat(document.getElementById('fos').value)                         || 0;
+            var pisosMaximos = parseFloat(document.getElementById('pisos_maximos').value)               || 0;
+            var porcentaje   = parseFloat(document.getElementById('porcentaje_emprendimiento').value)   || 0;
+            var costoM2      = parseFloat(document.getElementById('costo_usd_m2_emprendimiento').value) || 0;
 
             var emprendimiento = terrenoTotal * fos * pisosMaximos * (porcentaje / 100) * costoM2;
             document.getElementById('emprendimiento').value = emprendimiento.toFixed(2);
@@ -544,12 +572,10 @@
             var viendoEl      = document.getElementById('viendo_id');
             var propuestaInput = document.getElementById('propuesta_editable');
 
-            // Guardar el valor de propuesta del servidor antes de que calcular() lo sobreescriba
             var propuestaGuardada = propuestaInput ? propuestaInput.value : '';
 
             aplicarModoTipoCatastro();
 
-            // Restaurar propuesta guardada al cargar registro existente
             if ((editandoEl || viendoEl) && propuestaGuardada) {
                 propuestaInput.value = propuestaGuardada;
             }

@@ -1089,3 +1089,14 @@ tbody tr.row-desactivada:hover { opacity: 0.75; background: #fff8f8; }
     color: var(--text-2);
     font-weight: 500;
 }
+
+
+/* ---- Expediente link ---- */
+.link-expediente {
+    color: var(--blue);
+    text-decoration: none;
+    font-weight: 500;
+}
+.link-expediente:hover {
+    text-decoration: underline;
+}

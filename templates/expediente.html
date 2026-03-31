@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Expediente {{ exp.expediente or exp.id }} — Sistema de Valuaciones</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+
+<body>
+
+    <!-- Header -->
+    <header class="app-header">
+        <h1>Expediente {{ exp.expediente or '#' + exp.id|string }}</h1>
+        <div class="header-stats">
+            <a href="{{ url_for('index') }}" class="btn-logout">← Volver a lista</a>
+            <div class="stat-badge">
+                <span class="header-user-icon">&#9679;</span> {{ usuario }}
+            </div>
+            <a href="{{ url_for('logout') }}" class="btn-logout">Cerrar sesión</a>
+        </div>
+    </header>
+
+    <div class="container">
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+        {% for category, message in messages %}
+        <div class="alert alert-{{ category }}">{{ message }}</div>
+        {% endfor %}
+        {% endif %}
+        {% endwith %}
+
+        <!-- Info del expediente -->
+        <div class="card" style="margin-bottom:20px;">
+            <div class="card-header" style="display:flex; align-items:center; justify-content:space-between;">
+                <span>Datos del Expediente</span>
+                <div style="display:flex; gap:8px;">
+                    {% if exp.activa %}
+                    <a href="{{ url_for('nuevo_catastro', exp_id=exp.id) }}" class="btn btn-primary btn-sm">+ Agregar Catastro</a>
+                    <form method="POST" action="{{ url_for('desactivar', exp_id=exp.id) }}" style="display:inline"
+                        onsubmit="return confirm('¿Desactivar este expediente y todos sus catastros?')">
+                        <button type="submit" class="btn btn-sm btn-deactivate">Desactivar</button>
+                    </form>
+                    {% else %}
+                    <form method="POST" action="{{ url_for('reactivar', exp_id=exp.id) }}" style="display:inline">
+                        <button type="submit" class="btn btn-sm btn-success">Reactivar</button>
+                    </form>
+                    {% endif %}
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="form-grid" style="margin:0;">
+                    <div class="form-group">
+                        <label>Expediente</label>
+                        <input type="text" value="{{ exp.expediente or '—' }}" readonly>
+                    </div>
+                    <div class="form-group">
+                        <label>Carátula</label>
+                        <input type="text" value="{{ exp.caratula or '—' }}" readonly>
+                    </div>
+                    <div class="form-group">
+                        <label>Creado por</label>
+                        <input type="text" value="{{ exp.creado_por or '—' }}" readonly>
+                    </div>
+                    <div class="form-group">
+                        <label>Estado</label>
+                        <input type="text" value="{% if exp.activa %}Activo{% else %}Desactivado{% endif %}" readonly>
+                    </div>
+                </div>
+                {% if not exp.activa and exp.eliminado_por %}
+                <div style="margin-top:10px; font-size:0.85rem; color:#6b7280;">
+                    Desactivado por {{ exp.eliminado_por }} el {{ exp.fecha_eliminacion }}
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Catastros -->
+        <div class="card">
+            <div class="card-header" style="display:flex; align-items:center; justify-content:space-between;">
+                <span>Catastros &mdash; {{ catastros|length }} registro{{ 's' if catastros|length != 1 else '' }}</span>
+                {% if exp.activa %}
+                <a href="{{ url_for('nuevo_catastro', exp_id=exp.id) }}" class="btn btn-primary btn-sm">+ Agregar Catastro</a>
+                {% endif %}
+            </div>
+            <div class="card-body">
+                {% if catastros %}
+                <div class="table-wrapper">
+                    <table id="tabla-valuaciones">
+                        <thead>
+                            <tr>
+                                <th>VR #</th>
+                                <th>Catastro</th>
+                                <th>Tipo</th>
+                                <th>Dirección</th>
+                                <th>Fecha</th>
+                                <th>Propuesta U$S</th>
+                                <th>Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for c in catastros %}
+                            <tr>
+                                <td class="number">{{ c.id }}</td>
+                                <td>{{ c.catastro or '—' }}</td>
+                                <td>{{ c.tipo_catastro or '—' }}</td>
+                                <td>{{ c.direccion or '—' }}</td>
+                                <td>{{ c.fecha or '—' }}</td>
+                                <td class="number propuesta">
+                                    {{ "{:,.2f}".format(c.propuesta) if c.propuesta else '—' }}
+                                </td>
+                                <td>
+                                    <div class="actions-cell">
+                                        <a href="{{ url_for('ver', cat_id=c.id) }}" class="btn btn-sm btn-success">Ver</a>
+                                        {% if exp.activa %}
+                                        <a href="{{ url_for('editar', cat_id=c.id) }}" class="btn btn-sm btn-edit">Editar</a>
+                                        {% endif %}
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="empty-state">
+                    <p>Este expediente no tiene catastros aún.</p>
+                    {% if exp.activa %}
+                    <a href="{{ url_for('nuevo_catastro', exp_id=exp.id) }}" class="btn btn-primary">+ Agregar primer catastro</a>
+                    {% endif %}
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+    </div>
+
+</body>
+</html>
