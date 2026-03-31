@@ -115,10 +115,16 @@ def init_db():
             terreno_antes_revision      TEXT,
             usd_m2_terreno              REAL DEFAULT 0,
             productiva_hect             REAL DEFAULT 0,
+            productiva_frente_lado      TEXT,
+            productiva_antes_revision   TEXT,
             usd_hect_productiva         REAL DEFAULT 0,
             con_monte_hect              REAL DEFAULT 0,
+            con_monte_frente_lado       TEXT,
+            con_monte_antes_revision    TEXT,
             usd_hect_con_monte          REAL DEFAULT 0,
             cerros_hect                 REAL DEFAULT 0,
+            cerros_frente_lado          TEXT,
+            cerros_antes_revision       TEXT,
             usd_hect_cerros             REAL DEFAULT 0,
             sup_edif_m2                 REAL DEFAULT 0,
             edif_frente_lado            TEXT,
@@ -148,6 +154,17 @@ def init_db():
             fecha_registro              TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     ''')
+
+    # Columnas nuevas en catastros para bases ya existentes
+    for col, definition in [
+        ('productiva_frente_lado',    'TEXT'),
+        ('productiva_antes_revision', 'TEXT'),
+        ('con_monte_frente_lado',     'TEXT'),
+        ('con_monte_antes_revision',  'TEXT'),
+        ('cerros_frente_lado',        'TEXT'),
+        ('cerros_antes_revision',     'TEXT'),
+    ]:
+        execute(conn, f'ALTER TABLE catastros ADD COLUMN IF NOT EXISTS {col} {definition}')
 
     # ---- Migración desde valuaciones (si es necesario) ----
     exp_count = fetchscalar(conn, 'SELECT COUNT(*) FROM expedientes')
@@ -349,12 +366,18 @@ def _calcular_catastro(data):
     if tipo_catastro == 'Rural':
         terreno_m2     = 0
         usd_m2_terreno = 0
-        productiva_hect     = parse_float(data.get('productiva_hect'))
-        usd_hect_productiva = parse_float(data.get('usd_hect_productiva'))
-        con_monte_hect      = parse_float(data.get('con_monte_hect'))
-        usd_hect_con_monte  = parse_float(data.get('usd_hect_con_monte'))
-        cerros_hect         = parse_float(data.get('cerros_hect'))
-        usd_hect_cerros     = parse_float(data.get('usd_hect_cerros'))
+        productiva_hect             = parse_float(data.get('productiva_hect'))
+        productiva_frente_lado      = data.get('productiva_frente_lado', '').strip()
+        productiva_antes_revision   = data.get('productiva_antes_revision', '').strip()
+        usd_hect_productiva         = parse_float(data.get('usd_hect_productiva'))
+        con_monte_hect              = parse_float(data.get('con_monte_hect'))
+        con_monte_frente_lado       = data.get('con_monte_frente_lado', '').strip()
+        con_monte_antes_revision    = data.get('con_monte_antes_revision', '').strip()
+        usd_hect_con_monte          = parse_float(data.get('usd_hect_con_monte'))
+        cerros_hect                 = parse_float(data.get('cerros_hect'))
+        cerros_frente_lado          = data.get('cerros_frente_lado', '').strip()
+        cerros_antes_revision       = data.get('cerros_antes_revision', '').strip()
+        usd_hect_cerros             = parse_float(data.get('usd_hect_cerros'))
         total_usd_terreno = (productiva_hect * usd_hect_productiva +
                              con_monte_hect   * usd_hect_con_monte  +
                              cerros_hect      * usd_hect_cerros)
@@ -362,8 +385,11 @@ def _calcular_catastro(data):
         terreno_m2     = parse_float(data.get('terreno_m2'))
         usd_m2_terreno = parse_float(data.get('usd_m2_terreno'))
         productiva_hect = usd_hect_productiva = 0
+        productiva_frente_lado = productiva_antes_revision = ''
         con_monte_hect  = usd_hect_con_monte  = 0
+        con_monte_frente_lado = con_monte_antes_revision = ''
         cerros_hect     = usd_hect_cerros     = 0
+        cerros_frente_lado = cerros_antes_revision = ''
         total_usd_terreno = terreno_m2 * usd_m2_terreno
 
     total_usd_edif = sup_edif_m2 * usd_m2_edif
@@ -383,9 +409,18 @@ def _calcular_catastro(data):
         terreno_frente_lado=data.get('terreno_frente_lado', '').strip(),
         terreno_antes_revision=data.get('terreno_antes_revision', '').strip(),
         usd_m2_terreno=usd_m2_terreno,
-        productiva_hect=productiva_hect, usd_hect_productiva=usd_hect_productiva,
-        con_monte_hect=con_monte_hect,   usd_hect_con_monte=usd_hect_con_monte,
-        cerros_hect=cerros_hect,         usd_hect_cerros=usd_hect_cerros,
+        productiva_hect=productiva_hect,
+        productiva_frente_lado=productiva_frente_lado,
+        productiva_antes_revision=productiva_antes_revision,
+        usd_hect_productiva=usd_hect_productiva,
+        con_monte_hect=con_monte_hect,
+        con_monte_frente_lado=con_monte_frente_lado,
+        con_monte_antes_revision=con_monte_antes_revision,
+        usd_hect_con_monte=usd_hect_con_monte,
+        cerros_hect=cerros_hect,
+        cerros_frente_lado=cerros_frente_lado,
+        cerros_antes_revision=cerros_antes_revision,
+        usd_hect_cerros=usd_hect_cerros,
         sup_edif_m2=sup_edif_m2,
         edif_frente_lado=data.get('edif_frente_lado', '').strip(),
         edif_antes_revision=data.get('edif_antes_revision', '').strip(),
@@ -632,9 +667,9 @@ def agregar():
             expediente_id,
             catastro, tipo_catastro, direccion, fecha,
             terreno_m2, terreno_frente_lado, terreno_antes_revision, usd_m2_terreno,
-            productiva_hect, usd_hect_productiva,
-            con_monte_hect,  usd_hect_con_monte,
-            cerros_hect,     usd_hect_cerros,
+            productiva_hect, productiva_frente_lado, productiva_antes_revision, usd_hect_productiva,
+            con_monte_hect,  con_monte_frente_lado,  con_monte_antes_revision,  usd_hect_con_monte,
+            cerros_hect,     cerros_frente_lado,     cerros_antes_revision,     usd_hect_cerros,
             sup_edif_m2, edif_frente_lado, edif_antes_revision, usd_m2_edif,
             valor_dolar,
             total_usd_terreno, total_usd_edif, total_usd, propuesta, monto,
@@ -646,9 +681,9 @@ def agregar():
             %s,
             %s, %s, %s, %s,
             %s, %s, %s, %s,
-            %s, %s,
-            %s, %s,
-            %s, %s,
+            %s, %s, %s, %s,
+            %s, %s, %s, %s,
+            %s, %s, %s, %s,
             %s, %s, %s, %s,
             %s,
             %s, %s, %s, %s, %s,
@@ -661,9 +696,9 @@ def agregar():
         exp_id,
         c['catastro'], c['tipo_catastro'], c['direccion'], c['fecha'],
         c['terreno_m2'], c['terreno_frente_lado'], c['terreno_antes_revision'], c['usd_m2_terreno'],
-        c['productiva_hect'], c['usd_hect_productiva'],
-        c['con_monte_hect'],  c['usd_hect_con_monte'],
-        c['cerros_hect'],     c['usd_hect_cerros'],
+        c['productiva_hect'], c['productiva_frente_lado'], c['productiva_antes_revision'], c['usd_hect_productiva'],
+        c['con_monte_hect'],  c['con_monte_frente_lado'],  c['con_monte_antes_revision'],  c['usd_hect_con_monte'],
+        c['cerros_hect'],     c['cerros_frente_lado'],     c['cerros_antes_revision'],     c['usd_hect_cerros'],
         c['sup_edif_m2'], c['edif_frente_lado'], c['edif_antes_revision'], c['usd_m2_edif'],
         c['valor_dolar'],
         c['total_usd_terreno'], c['total_usd_edif'], c['total_usd'], c['propuesta'], c['monto'],
@@ -731,9 +766,9 @@ def guardar_catastro(exp_id):
             expediente_id,
             catastro, tipo_catastro, direccion, fecha,
             terreno_m2, terreno_frente_lado, terreno_antes_revision, usd_m2_terreno,
-            productiva_hect, usd_hect_productiva,
-            con_monte_hect,  usd_hect_con_monte,
-            cerros_hect,     usd_hect_cerros,
+            productiva_hect, productiva_frente_lado, productiva_antes_revision, usd_hect_productiva,
+            con_monte_hect,  con_monte_frente_lado,  con_monte_antes_revision,  usd_hect_con_monte,
+            cerros_hect,     cerros_frente_lado,     cerros_antes_revision,     usd_hect_cerros,
             sup_edif_m2, edif_frente_lado, edif_antes_revision, usd_m2_edif,
             valor_dolar,
             total_usd_terreno, total_usd_edif, total_usd, propuesta, monto,
@@ -745,9 +780,9 @@ def guardar_catastro(exp_id):
             %s,
             %s, %s, %s, %s,
             %s, %s, %s, %s,
-            %s, %s,
-            %s, %s,
-            %s, %s,
+            %s, %s, %s, %s,
+            %s, %s, %s, %s,
+            %s, %s, %s, %s,
             %s, %s, %s, %s,
             %s,
             %s, %s, %s, %s, %s,
@@ -760,9 +795,9 @@ def guardar_catastro(exp_id):
         exp_id,
         c['catastro'], c['tipo_catastro'], c['direccion'], c['fecha'],
         c['terreno_m2'], c['terreno_frente_lado'], c['terreno_antes_revision'], c['usd_m2_terreno'],
-        c['productiva_hect'], c['usd_hect_productiva'],
-        c['con_monte_hect'],  c['usd_hect_con_monte'],
-        c['cerros_hect'],     c['usd_hect_cerros'],
+        c['productiva_hect'], c['productiva_frente_lado'], c['productiva_antes_revision'], c['usd_hect_productiva'],
+        c['con_monte_hect'],  c['con_monte_frente_lado'],  c['con_monte_antes_revision'],  c['usd_hect_con_monte'],
+        c['cerros_hect'],     c['cerros_frente_lado'],     c['cerros_antes_revision'],     c['usd_hect_cerros'],
         c['sup_edif_m2'], c['edif_frente_lado'], c['edif_antes_revision'], c['usd_m2_edif'],
         c['valor_dolar'],
         c['total_usd_terreno'], c['total_usd_edif'], c['total_usd'], c['propuesta'], c['monto'],
@@ -887,9 +922,9 @@ def actualizar(cat_id):
         UPDATE catastros SET
             catastro=%s, tipo_catastro=%s, direccion=%s, fecha=%s,
             terreno_m2=%s, terreno_frente_lado=%s, terreno_antes_revision=%s, usd_m2_terreno=%s,
-            productiva_hect=%s, usd_hect_productiva=%s,
-            con_monte_hect=%s,  usd_hect_con_monte=%s,
-            cerros_hect=%s,     usd_hect_cerros=%s,
+            productiva_hect=%s, productiva_frente_lado=%s, productiva_antes_revision=%s, usd_hect_productiva=%s,
+            con_monte_hect=%s,  con_monte_frente_lado=%s,  con_monte_antes_revision=%s,  usd_hect_con_monte=%s,
+            cerros_hect=%s,     cerros_frente_lado=%s,     cerros_antes_revision=%s,     usd_hect_cerros=%s,
             sup_edif_m2=%s, edif_frente_lado=%s, edif_antes_revision=%s, usd_m2_edif=%s,
             valor_dolar=%s,
             total_usd_terreno=%s, total_usd_edif=%s, total_usd=%s, propuesta=%s, monto=%s,
@@ -902,9 +937,9 @@ def actualizar(cat_id):
     ''', (
         c['catastro'], c['tipo_catastro'], c['direccion'], c['fecha'],
         c['terreno_m2'], c['terreno_frente_lado'], c['terreno_antes_revision'], c['usd_m2_terreno'],
-        c['productiva_hect'], c['usd_hect_productiva'],
-        c['con_monte_hect'],  c['usd_hect_con_monte'],
-        c['cerros_hect'],     c['usd_hect_cerros'],
+        c['productiva_hect'], c['productiva_frente_lado'], c['productiva_antes_revision'], c['usd_hect_productiva'],
+        c['con_monte_hect'],  c['con_monte_frente_lado'],  c['con_monte_antes_revision'],  c['usd_hect_con_monte'],
+        c['cerros_hect'],     c['cerros_frente_lado'],     c['cerros_antes_revision'],     c['usd_hect_cerros'],
         c['sup_edif_m2'], c['edif_frente_lado'], c['edif_antes_revision'], c['usd_m2_edif'],
         c['valor_dolar'],
         c['total_usd_terreno'], c['total_usd_edif'], c['total_usd'], c['propuesta'], c['monto'],

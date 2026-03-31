@@ -187,7 +187,10 @@
                                 <td><input type="number" name="productiva_hect" id="productiva_hect" step="0.01"
                                         placeholder="0.00" value="{{ datos.productiva_hect if datos else '' }}"
                                         oninput="calcular()" {% if readonly %}readonly{% endif %}></td>
-                                <td colspan="2"></td>
+                                <td><input type="text" name="productiva_frente_lado" placeholder=""
+                                        value="{{ datos.productiva_frente_lado if datos else '' }}" {% if readonly %}readonly{% endif %}></td>
+                                <td><input type="text" name="productiva_antes_revision" placeholder=""
+                                        value="{{ datos.productiva_antes_revision if datos else '' }}" {% if readonly %}readonly{% endif %}></td>
                                 <td><input type="number" name="usd_hect_productiva" id="usd_hect_productiva" step="0.01"
                                         placeholder="0.00" value="{{ datos.usd_hect_productiva if datos else '' }}"
                                         oninput="calcular()" {% if readonly %}readonly{% endif %}></td>
@@ -198,7 +201,10 @@
                                 <td><input type="number" name="con_monte_hect" id="con_monte_hect" step="0.01"
                                         placeholder="0.00" value="{{ datos.con_monte_hect if datos else '' }}"
                                         oninput="calcular()" {% if readonly %}readonly{% endif %}></td>
-                                <td colspan="2"></td>
+                                <td><input type="text" name="con_monte_frente_lado" placeholder=""
+                                        value="{{ datos.con_monte_frente_lado if datos else '' }}" {% if readonly %}readonly{% endif %}></td>
+                                <td><input type="text" name="con_monte_antes_revision" placeholder=""
+                                        value="{{ datos.con_monte_antes_revision if datos else '' }}" {% if readonly %}readonly{% endif %}></td>
                                 <td><input type="number" name="usd_hect_con_monte" id="usd_hect_con_monte" step="0.01"
                                         placeholder="0.00" value="{{ datos.usd_hect_con_monte if datos else '' }}"
                                         oninput="calcular()" {% if readonly %}readonly{% endif %}></td>
@@ -209,7 +215,10 @@
                                 <td><input type="number" name="cerros_hect" id="cerros_hect" step="0.01"
                                         placeholder="0.00" value="{{ datos.cerros_hect if datos else '' }}"
                                         oninput="calcular()" {% if readonly %}readonly{% endif %}></td>
-                                <td colspan="2"></td>
+                                <td><input type="text" name="cerros_frente_lado" placeholder=""
+                                        value="{{ datos.cerros_frente_lado if datos else '' }}" {% if readonly %}readonly{% endif %}></td>
+                                <td><input type="text" name="cerros_antes_revision" placeholder=""
+                                        value="{{ datos.cerros_antes_revision if datos else '' }}" {% if readonly %}readonly{% endif %}></td>
                                 <td><input type="number" name="usd_hect_cerros" id="usd_hect_cerros" step="0.01"
                                         placeholder="0.00" value="{{ datos.usd_hect_cerros if datos else '' }}"
                                         oninput="calcular()" {% if readonly %}readonly{% endif %}></td>
