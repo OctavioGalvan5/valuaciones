@@ -103,11 +103,16 @@
                         <tbody>
                             {% for c in catastros %}
                             <tr>
-                                <td class="number">{{ c.id }}</td>
-                                <td>{{ c.catastro or '—' }}</td>
+                                <td class="number">{{ c.numero_vr or c.id }} ({{ c.editado_por }})</td>
+                                <td>
+                                    {{ c.catastro or '—' }}
+                                    {% if c.es_reconsideracion %}
+                                    <span style="background-color: #fef3c7; color: #d97706; padding: 2px 6px; border-radius: 4px; font-size: 0.75rem; font-weight: 600; margin-left: 8px; border: 1px solid #fde68a;">Reconsideración</span>
+                                    {% endif %}
+                                </td>
                                 <td>{{ c.tipo_catastro or '—' }}</td>
                                 <td>{{ c.direccion or '—' }}</td>
-                                <td>{{ c.fecha or '—' }}</td>
+                                <td>{{ c.fecha.split('-')|reverse|join('/') if c.fecha else '—' }}</td>
                                 <td class="number propuesta">
                                     {{ "{:,.2f}".format(c.propuesta) if c.propuesta else '—' }}
                                 </td>
@@ -115,7 +120,7 @@
                                     <div class="actions-cell">
                                         <a href="{{ url_for('ver', cat_id=c.id) }}" class="btn btn-sm btn-success">Ver</a>
                                         {% if exp.activa %}
-                                        <a href="{{ url_for('editar', cat_id=c.id) }}" class="btn btn-sm btn-edit">Editar</a>
+                                        <a href="{{ url_for('reconsiderar', cat_id=c.id) }}" class="btn btn-sm btn-edit">Reconsiderar</a>
                                         {% endif %}
                                     </div>
                                 </td>

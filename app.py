@@ -1,4 +1,7 @@
 import os
+from dotenv import load_dotenv
+load_dotenv()
+
 import re
 import math
 import uuid
@@ -72,6 +75,16 @@ def execute(conn, sql, params=None):
         cur.execute(sql, params or [])
 
 
+def obtener_siguiente_vr(conn, usuario):
+    return fetchscalar(conn, '''
+        INSERT INTO contadores_vr (usuario, ultimo_vr)
+        VALUES (%s, 1)
+        ON CONFLICT (usuario) DO UPDATE
+        SET ultimo_vr = contadores_vr.ultimo_vr + 1
+        RETURNING ultimo_vr
+    ''', (usuario,))
+
+
 # ---- MinIO ----
 
 def init_minio():
@@ -101,11 +114,20 @@ def init_db():
         )
     ''')
 
-    # ---- Tabla catastros (id = N° VR) ----
+    # ---- Tabla contadores_vr ----
+    execute(conn, '''
+        CREATE TABLE IF NOT EXISTS contadores_vr (
+            usuario TEXT PRIMARY KEY,
+            ultimo_vr INTEGER DEFAULT 0
+        )
+    ''')
+
+    # ---- Tabla catastros (id interno, numero_vr visible) ----
     execute(conn, '''
         CREATE TABLE IF NOT EXISTS catastros (
             id                          SERIAL PRIMARY KEY,
             expediente_id               INTEGER NOT NULL REFERENCES expedientes(id),
+            numero_vr                   INTEGER,
             catastro                    TEXT,
             tipo_catastro               TEXT,
             direccion                   TEXT,
@@ -151,7 +173,8 @@ def init_db():
             latitud                     REAL,
             longitud                    REAL,
             editado_por                 TEXT,
-            fecha_registro              TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            fecha_registro              TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            es_reconsideracion          BOOLEAN DEFAULT FALSE
         )
     ''')
 
@@ -163,89 +186,12 @@ def init_db():
         ('con_monte_antes_revision',  'TEXT'),
         ('cerros_frente_lado',        'TEXT'),
         ('cerros_antes_revision',     'TEXT'),
+        ('es_reconsideracion',        'BOOLEAN DEFAULT FALSE'),
+        ('numero_vr',                 'INTEGER'),
     ]:
         execute(conn, f'ALTER TABLE catastros ADD COLUMN IF NOT EXISTS {col} {definition}')
 
-    # ---- Migración desde valuaciones (si es necesario) ----
-    exp_count = fetchscalar(conn, 'SELECT COUNT(*) FROM expedientes')
-    if exp_count == 0:
-        val_exists = fetchscalar(conn,
-            "SELECT COUNT(*) FROM information_schema.tables "
-            "WHERE table_name = 'valuaciones' AND table_schema = 'public'")
-        if val_exists:
-            # Aseguramos que las columnas nuevas existen en valuaciones antes de migrar
-            for col, definition in [
-                ('tipo_catastro',               'TEXT'),
-                ('monto',                       'REAL DEFAULT 0'),
-                ('productiva_hect',             'REAL DEFAULT 0'),
-                ('usd_hect_productiva',         'REAL DEFAULT 0'),
-                ('con_monte_hect',              'REAL DEFAULT 0'),
-                ('usd_hect_con_monte',          'REAL DEFAULT 0'),
-                ('cerros_hect',                 'REAL DEFAULT 0'),
-                ('usd_hect_cerros',             'REAL DEFAULT 0'),
-                ('creado_por',                  'TEXT'),
-                ('editado_por',                 'TEXT'),
-                ('activa',                      'INTEGER DEFAULT 1'),
-                ('eliminado_por',               'TEXT'),
-                ('fecha_eliminacion',           'TEXT'),
-                ('porcentaje_emprendimiento',   'REAL DEFAULT 0'),
-                ('costo_usd_m2_emprendimiento', 'REAL DEFAULT 0'),
-                ('emprendimiento',              'REAL DEFAULT 0'),
-            ]:
-                execute(conn, f'ALTER TABLE valuaciones ADD COLUMN IF NOT EXISTS {col} {definition}')
 
-            # Migrar expedientes (1 por cada valuación)
-            execute(conn, '''
-                INSERT INTO expedientes (id, expediente, caratula, creado_por,
-                    activa, eliminado_por, fecha_eliminacion, fecha_registro)
-                SELECT id, expediente, caratula, creado_por,
-                    COALESCE(activa, 1), eliminado_por, fecha_eliminacion, fecha_registro
-                FROM valuaciones
-            ''')
-
-            # Migrar catastros (id = valuacion.id, expediente_id = valuacion.id)
-            execute(conn, '''
-                INSERT INTO catastros (
-                    id, expediente_id,
-                    catastro, tipo_catastro, direccion, fecha,
-                    terreno_m2, terreno_frente_lado, terreno_antes_revision, usd_m2_terreno,
-                    productiva_hect, usd_hect_productiva,
-                    con_monte_hect,  usd_hect_con_monte,
-                    cerros_hect,     usd_hect_cerros,
-                    sup_edif_m2, edif_frente_lado, edif_antes_revision, usd_m2_edif,
-                    valor_dolar,
-                    total_usd_terreno, total_usd_edif, total_usd, propuesta, monto,
-                    denuncia, gmaps_zona, gmaps_frente,
-                    terreno_total, fot, fos, sup_edif_total, pisos_maximos,
-                    porcentaje_emprendimiento, costo_usd_m2_emprendimiento, emprendimiento,
-                    observaciones, latitud, longitud, editado_por, fecha_registro
-                )
-                SELECT
-                    id, id,
-                    catastro, tipo_catastro, direccion, fecha,
-                    COALESCE(terreno_m2, 0), terreno_frente_lado, terreno_antes_revision,
-                    COALESCE(usd_m2_terreno, 0),
-                    COALESCE(productiva_hect, 0), COALESCE(usd_hect_productiva, 0),
-                    COALESCE(con_monte_hect, 0),  COALESCE(usd_hect_con_monte, 0),
-                    COALESCE(cerros_hect, 0),     COALESCE(usd_hect_cerros, 0),
-                    COALESCE(sup_edif_m2, 0), edif_frente_lado, edif_antes_revision,
-                    COALESCE(usd_m2_edif, 0),
-                    COALESCE(valor_dolar, 0),
-                    COALESCE(total_usd_terreno, 0), COALESCE(total_usd_edif, 0),
-                    COALESCE(total_usd, 0), COALESCE(propuesta, 0), COALESCE(monto, 0),
-                    denuncia, gmaps_zona, gmaps_frente,
-                    COALESCE(terreno_total, 0), COALESCE(fot, 0), COALESCE(fos, 0),
-                    COALESCE(sup_edif_total, 0), COALESCE(pisos_maximos, 0),
-                    COALESCE(porcentaje_emprendimiento, 0),
-                    COALESCE(costo_usd_m2_emprendimiento, 0),
-                    COALESCE(emprendimiento, 0),
-                    observaciones, latitud, longitud, editado_por, fecha_registro
-                FROM valuaciones
-            ''')
-
-            # Resetear secuencias
-            execute(conn, "SELECT setval(pg_get_serial_sequence('expedientes', 'id'), (SELECT MAX(id) FROM expedientes))")
-            execute(conn, "SELECT setval(pg_get_serial_sequence('catastros', 'id'), (SELECT MAX(id) FROM catastros))")
 
     # ---- Tabla archivos ----
     execute(conn, '''
@@ -524,10 +470,10 @@ def index():
     list_sql = f'''
         SELECT e.id, e.expediente, e.caratula, e.creado_por, e.activa,
                e.fecha_registro,
-               COUNT(c.id) AS num_catastros,
+               COUNT(CASE WHEN c.es_reconsideracion = FALSE THEN 1 END) AS num_catastros,
                MIN(c.fecha) AS primera_fecha,
                MAX(c.fecha) AS ultima_fecha,
-               STRING_AGG(CAST(c.id AS TEXT), ', ' ORDER BY c.id) AS vr_numeros
+               STRING_AGG(CAST(c.numero_vr AS TEXT) || ' (' || c.editado_por || ')', ', ' ORDER BY c.id) AS vr_numeros
         FROM expedientes e
         {join_type} catastros c ON c.expediente_id = e.id
         WHERE {where}
@@ -662,9 +608,11 @@ def agregar():
 
     # Crear catastro
     c = _calcular_catastro(data)
+    num_vr = obtener_siguiente_vr(conn, usuario_actual)
     cat_id = fetchscalar(conn, '''
         INSERT INTO catastros (
             expediente_id,
+            numero_vr,
             catastro, tipo_catastro, direccion, fecha,
             terreno_m2, terreno_frente_lado, terreno_antes_revision, usd_m2_terreno,
             productiva_hect, productiva_frente_lado, productiva_antes_revision, usd_hect_productiva,
@@ -678,7 +626,7 @@ def agregar():
             porcentaje_emprendimiento, costo_usd_m2_emprendimiento, emprendimiento,
             observaciones, latitud, longitud
         ) VALUES (
-            %s,
+            %s, %s,
             %s, %s, %s, %s,
             %s, %s, %s, %s,
             %s, %s, %s, %s,
@@ -693,7 +641,7 @@ def agregar():
             %s, %s, %s
         ) RETURNING id
     ''', (
-        exp_id,
+        exp_id, num_vr,
         c['catastro'], c['tipo_catastro'], c['direccion'], c['fecha'],
         c['terreno_m2'], c['terreno_frente_lado'], c['terreno_antes_revision'], c['usd_m2_terreno'],
         c['productiva_hect'], c['productiva_frente_lado'], c['productiva_antes_revision'], c['usd_hect_productiva'],
@@ -761,9 +709,11 @@ def guardar_catastro(exp_id):
         return redirect(url_for('index'))
 
     c = _calcular_catastro(data)
+    num_vr = obtener_siguiente_vr(conn, usuario_actual)
     cat_id = fetchscalar(conn, '''
         INSERT INTO catastros (
             expediente_id,
+            numero_vr,
             catastro, tipo_catastro, direccion, fecha,
             terreno_m2, terreno_frente_lado, terreno_antes_revision, usd_m2_terreno,
             productiva_hect, productiva_frente_lado, productiva_antes_revision, usd_hect_productiva,
@@ -777,7 +727,7 @@ def guardar_catastro(exp_id):
             porcentaje_emprendimiento, costo_usd_m2_emprendimiento, emprendimiento,
             observaciones, latitud, longitud
         ) VALUES (
-            %s,
+            %s, %s,
             %s, %s, %s, %s,
             %s, %s, %s, %s,
             %s, %s, %s, %s,
@@ -792,7 +742,7 @@ def guardar_catastro(exp_id):
             %s, %s, %s
         ) RETURNING id
     ''', (
-        exp_id,
+        exp_id, num_vr,
         c['catastro'], c['tipo_catastro'], c['direccion'], c['fecha'],
         c['terreno_m2'], c['terreno_frente_lado'], c['terreno_antes_revision'], c['usd_m2_terreno'],
         c['productiva_hect'], c['productiva_frente_lado'], c['productiva_antes_revision'], c['usd_hect_productiva'],
@@ -874,9 +824,9 @@ def ver(cat_id):
                            usuario=session['usuario'])
 
 
-@app.route('/editar/<int:cat_id>')
+@app.route('/reconsiderar/<int:cat_id>')
 @login_required
-def editar(cat_id):
+def reconsiderar(cat_id):
     conn = get_db()
     catastro = fetchone(conn, 'SELECT * FROM catastros WHERE id = %s', (cat_id,))
     if not catastro:
@@ -885,26 +835,34 @@ def editar(cat_id):
     exp = fetchone(conn, 'SELECT * FROM expedientes WHERE id = %s', (catastro['expediente_id'],))
     archivos = fetchall(conn, 'SELECT * FROM archivos WHERE catastro_id = %s ORDER BY fecha_subida DESC', (cat_id,))
     conn.close()
+    
+    # Mover valores viejos a "Antes / Revisión"
+    catastro['terreno_antes_revision'] = str(catastro.get('usd_m2_terreno', '')) if catastro.get('usd_m2_terreno') else ''
+    catastro['productiva_antes_revision'] = str(catastro.get('usd_hect_productiva', '')) if catastro.get('usd_hect_productiva') else ''
+    catastro['con_monte_antes_revision'] = str(catastro.get('usd_hect_con_monte', '')) if catastro.get('usd_hect_con_monte') else ''
+    catastro['cerros_antes_revision'] = str(catastro.get('usd_hect_cerros', '')) if catastro.get('usd_hect_cerros') else ''
+    catastro['edif_antes_revision'] = str(catastro.get('usd_m2_edif', '')) if catastro.get('usd_m2_edif') else ''
+
     return render_template('form.html',
-                           editando=catastro,
+                           reconsiderando=catastro,
                            expediente_obj=exp,
                            archivos=archivos,
                            today=datetime.now().strftime('%Y-%m-%d'),
                            usuario=session['usuario'])
 
 
-@app.route('/actualizar/<int:cat_id>', methods=['POST'])
+@app.route('/guardar_reconsideracion/<int:cat_id>', methods=['POST'])
 @login_required
-def actualizar(cat_id):
+def guardar_reconsideracion(cat_id):
     usuario_actual = session['usuario']
     data = request.form
 
     conn = get_db()
-    catastro = fetchone(conn, 'SELECT expediente_id FROM catastros WHERE id = %s', (cat_id,))
-    if not catastro:
+    catastro_viejo = fetchone(conn, 'SELECT expediente_id FROM catastros WHERE id = %s', (cat_id,))
+    if not catastro_viejo:
         conn.close()
         return redirect(url_for('index'))
-    exp_id = catastro['expediente_id']
+    exp_id = catastro_viejo['expediente_id']
 
     # Actualizar expediente si se enviaron esos campos
     new_expediente = data.get('expediente', '').strip()
@@ -918,23 +876,40 @@ def actualizar(cat_id):
         ''', (new_expediente, new_caratula, exp_id))
 
     c = _calcular_catastro(data)
-    execute(conn, '''
-        UPDATE catastros SET
-            catastro=%s, tipo_catastro=%s, direccion=%s, fecha=%s,
-            terreno_m2=%s, terreno_frente_lado=%s, terreno_antes_revision=%s, usd_m2_terreno=%s,
-            productiva_hect=%s, productiva_frente_lado=%s, productiva_antes_revision=%s, usd_hect_productiva=%s,
-            con_monte_hect=%s,  con_monte_frente_lado=%s,  con_monte_antes_revision=%s,  usd_hect_con_monte=%s,
-            cerros_hect=%s,     cerros_frente_lado=%s,     cerros_antes_revision=%s,     usd_hect_cerros=%s,
-            sup_edif_m2=%s, edif_frente_lado=%s, edif_antes_revision=%s, usd_m2_edif=%s,
-            valor_dolar=%s,
-            total_usd_terreno=%s, total_usd_edif=%s, total_usd=%s, propuesta=%s, monto=%s,
-            denuncia=%s, gmaps_zona=%s, gmaps_frente=%s,
-            terreno_total=%s, fot=%s, fos=%s, sup_edif_total=%s, pisos_maximos=%s,
-            porcentaje_emprendimiento=%s, costo_usd_m2_emprendimiento=%s, emprendimiento=%s,
-            observaciones=%s, latitud=%s, longitud=%s,
-            editado_por=%s
-        WHERE id=%s
+    num_vr = obtener_siguiente_vr(conn, usuario_actual)
+    nuevo_cat_id = fetchscalar(conn, '''
+        INSERT INTO catastros (
+            expediente_id,
+            numero_vr,
+            catastro, tipo_catastro, direccion, fecha,
+            terreno_m2, terreno_frente_lado, terreno_antes_revision, usd_m2_terreno,
+            productiva_hect, productiva_frente_lado, productiva_antes_revision, usd_hect_productiva,
+            con_monte_hect,  con_monte_frente_lado,  con_monte_antes_revision,  usd_hect_con_monte,
+            cerros_hect,     cerros_frente_lado,     cerros_antes_revision,     usd_hect_cerros,
+            sup_edif_m2, edif_frente_lado, edif_antes_revision, usd_m2_edif,
+            valor_dolar,
+            total_usd_terreno, total_usd_edif, total_usd, propuesta, monto,
+            denuncia, gmaps_zona, gmaps_frente,
+            terreno_total, fot, fos, sup_edif_total, pisos_maximos,
+            porcentaje_emprendimiento, costo_usd_m2_emprendimiento, emprendimiento,
+            observaciones, latitud, longitud, editado_por, es_reconsideracion
+        ) VALUES (
+            %s, %s,
+            %s, %s, %s, %s,
+            %s, %s, %s, %s,
+            %s, %s, %s, %s,
+            %s, %s, %s, %s,
+            %s, %s, %s, %s,
+            %s, %s, %s, %s,
+            %s,
+            %s, %s, %s, %s, %s,
+            %s, %s, %s,
+            %s, %s, %s, %s, %s,
+            %s, %s, %s,
+            %s, %s, %s, %s, TRUE
+        ) RETURNING id
     ''', (
+        exp_id, num_vr,
         c['catastro'], c['tipo_catastro'], c['direccion'], c['fecha'],
         c['terreno_m2'], c['terreno_frente_lado'], c['terreno_antes_revision'], c['usd_m2_terreno'],
         c['productiva_hect'], c['productiva_frente_lado'], c['productiva_antes_revision'], c['usd_hect_productiva'],
@@ -946,10 +921,16 @@ def actualizar(cat_id):
         c['denuncia'], c['gmaps_zona'], c['gmaps_frente'],
         c['terreno_total'], c['fot'], c['fos'], c['sup_edif_total'], c['pisos_maximos'],
         c['porcentaje_emprendimiento'], c['costo_usd_m2_emprendimiento'], c['emprendimiento'],
-        c['observaciones'], c['latitud'], c['longitud'],
-        usuario_actual,
-        cat_id,
+        c['observaciones'], c['latitud'], c['longitud'], usuario_actual
     ))
+
+    # Copiar archivos adjuntos del catastro viejo al nuevo
+    archivos_viejos = fetchall(conn, 'SELECT * FROM archivos WHERE catastro_id = %s', (cat_id,))
+    for arch in archivos_viejos:
+        execute(conn, '''
+            INSERT INTO archivos (catastro_id, nombre_original, objeto_minio, tipo, tamanio, subido_por)
+            VALUES (%s, %s, %s, %s, %s, %s)
+        ''', (nuevo_cat_id, arch['nombre_original'], arch['objeto_minio'], arch['tipo'], arch['tamanio'], arch['subido_por']))
 
     for file in request.files.getlist('archivos'):
         if not file or not file.filename:
@@ -957,7 +938,7 @@ def actualizar(cat_id):
         ext = os.path.splitext(file.filename)[1].lower()
         if ext not in ALLOWED_EXTENSIONS:
             continue
-        objeto_minio = f'{cat_id}/{uuid.uuid4().hex}{ext}'
+        objeto_minio = f'{nuevo_cat_id}/{uuid.uuid4().hex}{ext}'
         file_data = file.read()
         tamanio = len(file_data)
         try:
@@ -966,7 +947,7 @@ def actualizar(cat_id):
             execute(conn, '''
                 INSERT INTO archivos (catastro_id, nombre_original, objeto_minio, tipo, tamanio, subido_por)
                 VALUES (%s, %s, %s, %s, %s, %s)
-            ''', (cat_id, file.filename, objeto_minio, ext, tamanio, usuario_actual))
+            ''', (nuevo_cat_id, file.filename, objeto_minio, ext, tamanio, usuario_actual))
         except S3Error as e:
             print(f'[MinIO] Error al subir archivo: {e}')
 
@@ -1193,6 +1174,37 @@ def exportar_excel():
         mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         headers={'Content-Disposition': f'attachment; filename="valuaciones_{fecha_hoy}.xlsx"'},
     )
+
+
+@app.route('/configurar_vr', methods=['GET', 'POST'])
+@login_required
+def configurar_vr():
+    conn = get_db()
+    usuario_actual = session['usuario']
+    
+    if request.method == 'POST':
+        try:
+            proximo_vr = int(request.form.get('proximo_vr', 1))
+            if proximo_vr < 1: proximo_vr = 1
+        except:
+            proximo_vr = 1
+            
+        execute(conn, '''
+            INSERT INTO contadores_vr (usuario, ultimo_vr)
+            VALUES (%s, %s)
+            ON CONFLICT (usuario) DO UPDATE
+            SET ultimo_vr = EXCLUDED.ultimo_vr
+        ''', (usuario_actual, proximo_vr - 1))
+        conn.commit()
+        conn.close()
+        return redirect(url_for('index'))
+        
+    ultimo_vr = fetchscalar(conn, 'SELECT ultimo_vr FROM contadores_vr WHERE usuario = %s', (usuario_actual,))
+    conn.close()
+    
+    proximo_actual = 1 if ultimo_vr is None else ultimo_vr + 1
+        
+    return render_template('configurar_vr.html', proximo_actual=proximo_actual, usuario=usuario_actual)
 
 
 init_db()

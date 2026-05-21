@@ -2,7 +2,8 @@
   "permissions": {
     "allow": [
       "Bash(python test_coords.py)",
-      "Bash(python3 -c \":*)"
+      "Bash(python3 -c \":*)",
+      "Bash(git commit -m ' *)"
     ],
     "deny": [],
     "ask": []

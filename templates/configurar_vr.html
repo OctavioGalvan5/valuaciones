@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Configurar Numeración — Sistema de Tasaciones</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <style>
+        .config-card {
+            max-width: 500px;
+            margin: 40px auto;
+        }
+        .config-text {
+            font-size: 0.95rem;
+            color: #4b5563;
+            margin-bottom: 20px;
+            line-height: 1.5;
+        }
+        .config-text strong {
+            color: #1f2937;
+            background-color: #f3f4f6;
+            padding: 2px 6px;
+            border-radius: 4px;
+        }
+        .form-actions {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 25px;
+            border-top: 1px solid #e5e7eb;
+            padding-top: 20px;
+        }
+        .form-actions a {
+            text-decoration: none;
+            color: #4b5563;
+            padding: 8px 16px;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            font-size: 0.85rem;
+            font-weight: 500;
+            background: #fff;
+            transition: all 0.2s;
+        }
+        .form-actions a:hover {
+            background: #f9fafb;
+            color: #111827;
+        }
+        .config-input {
+            font-size: 1.2rem !important;
+            padding: 12px !important;
+            text-align: center;
+            font-weight: bold;
+            color: #2563eb;
+            width: 150px;
+            margin: 0 auto;
+            display: block;
+        }
+        .input-wrapper {
+            text-align: center;
+            margin: 20px 0;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Header -->
+    <header class="app-header">
+        <h1>Sistema de Valuaciones</h1>
+        <div class="header-stats">
+            <a href="{{ url_for('index') }}" class="btn-logout">← Volver a lista</a>
+            <div class="stat-badge">
+                <span class="header-user-icon">&#9679;</span> {{ usuario }}
+            </div>
+            <a href="{{ url_for('logout') }}" class="btn-logout">Cerrar sesión</a>
+        </div>
+    </header>
+
+    <div class="container">
+        <div class="card config-card">
+            <div class="card-header">
+                Configuración de Numeración VR
+            </div>
+            <div class="card-body">
+                <div class="alert alert-info" style="margin-bottom: 20px; font-size: 0.9rem;">
+                    <strong>ℹ️ Aclaración importante:</strong> Esta configuración es individual y exclusiva para el usuario <strong>{{ usuario }}</strong>. Cambiar tu número de VR no afectará ni alterará los números de los demás tasadores.
+                </div>
+
+                <p class="config-text">
+                    El sistema indica que tu próxima valuación se guardará bajo el número: <strong>VR #{{ proximo_actual }}</strong>.
+                </p>
+
+                <form method="POST">
+                    <div class="form-group input-wrapper">
+                        <label style="text-align: center; margin-bottom: 10px; display: block;">¿Desde qué número querés que empiece tu próximo VR?</label>
+                        <input type="number" name="proximo_vr" value="{{ proximo_actual }}" min="1" class="form-control config-input" required>
+                    </div>
+                    
+                    <div class="form-actions">
+                        <a href="{{ url_for('index') }}">Cancelar</a>
+                        <button type="submit" class="btn btn-primary">Guardar Configuración</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+</body>
+</html>
