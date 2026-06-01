@@ -85,6 +85,26 @@ def obtener_siguiente_vr(conn, usuario):
     ''', (usuario,))
 
 
+def obtener_siguiente_recuento(conn, usuario):
+    return fetchscalar(conn, '''
+        INSERT INTO contadores_recuento (usuario, ultimo_recuento)
+        VALUES (%s, 1)
+        ON CONFLICT (usuario) DO UPDATE
+        SET ultimo_recuento = contadores_recuento.ultimo_recuento + 1
+        RETURNING ultimo_recuento
+    ''', (usuario,))
+
+
+def parse_pesos(val):
+    if not val:
+        return 0
+    try:
+        cleaned = str(val).replace('.', '').replace(',', '').replace('$', '').replace(' ', '')
+        return int(cleaned)
+    except (ValueError, TypeError):
+        return 0
+
+
 # ---- MinIO ----
 
 def init_minio():
@@ -214,6 +234,33 @@ def init_db():
         "WHERE table_name='archivos' AND column_name='valuacion_id'")
     if old_col:
         execute(conn, 'UPDATE archivos SET catastro_id = valuacion_id WHERE catastro_id IS NULL')
+
+    # ---- Tabla automotores ----
+    execute(conn, '''
+        CREATE TABLE IF NOT EXISTS automotores (
+            id               SERIAL PRIMARY KEY,
+            expediente_id    INTEGER NOT NULL REFERENCES expedientes(id),
+            numero_recuento  INTEGER,
+            vehiculo         TEXT,
+            anio             INTEGER,
+            valor            BIGINT DEFAULT 0,
+            fecha            TEXT,
+            creado_por       TEXT,
+            observaciones    TEXT,
+            fecha_registro   TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+
+    # ---- Tabla contadores_recuento ----
+    execute(conn, '''
+        CREATE TABLE IF NOT EXISTS contadores_recuento (
+            usuario TEXT PRIMARY KEY,
+            ultimo_recuento INTEGER DEFAULT 0
+        )
+    ''')
+
+    # automotor_id en archivos
+    execute(conn, 'ALTER TABLE archivos ADD COLUMN IF NOT EXISTS automotor_id INTEGER')
 
     # ---- Tabla usuarios ----
     execute(conn, '''
@@ -471,9 +518,10 @@ def index():
         SELECT e.id, e.expediente, e.caratula, e.creado_por, e.activa,
                e.fecha_registro,
                COUNT(CASE WHEN c.es_reconsideracion = FALSE THEN 1 END) AS num_catastros,
+               (SELECT COUNT(*) FROM automotores WHERE expediente_id = e.id) AS num_automotores,
                MIN(c.fecha) AS primera_fecha,
                MAX(c.fecha) AS ultima_fecha,
-               STRING_AGG(CAST(c.numero_vr AS TEXT) || ' (' || c.editado_por || ')', ', ' ORDER BY c.id) AS vr_numeros
+               STRING_AGG(CAST(c.numero_vr AS TEXT) || COALESCE(' (' || c.editado_por || ')', ''), ', ' ORDER BY c.id) AS vr_numeros
         FROM expedientes e
         {join_type} catastros c ON c.expediente_id = e.id
         WHERE {where}
@@ -507,10 +555,13 @@ def expediente_detail(exp_id):
         return redirect(url_for('index'))
     catastros = fetchall(conn,
         'SELECT * FROM catastros WHERE expediente_id = %s ORDER BY id ASC', (exp_id,))
+    automotores_list = fetchall(conn,
+        'SELECT * FROM automotores WHERE expediente_id = %s ORDER BY id ASC', (exp_id,))
     conn.close()
     return render_template('expediente.html',
                            exp=exp,
                            catastros=catastros,
+                           automotores=automotores_list,
                            usuario=session['usuario'])
 
 
@@ -579,103 +630,67 @@ def verificar_catastro():
     return jsonify({'alertas': alertas, 'coordenadas': {'lat': lat, 'lon': lon}})
 
 
-@app.route('/nueva')
+@app.route('/reconsideraciones')
 @login_required
-def nueva():
-    return render_template('form.html',
-                           today=datetime.now().strftime('%Y-%m-%d'),
+def reconsideraciones():
+    desde          = request.args.get('desde', '').strip()
+    hasta          = request.args.get('hasta', '').strip()
+    filtro_usuario = request.args.get('usuario', '').strip()
+
+    conditions = ['c.es_reconsideracion = TRUE']
+    params = []
+    if desde:
+        conditions.append('c.fecha >= %s')
+        params.append(desde)
+    if hasta:
+        conditions.append('c.fecha <= %s')
+        params.append(hasta)
+    if filtro_usuario:
+        conditions.append('c.editado_por = %s')
+        params.append(filtro_usuario)
+
+    where = ' AND '.join(conditions)
+
+    conn = get_db()
+    rows = fetchall(conn, f'''
+        SELECT c.id, c.numero_vr, c.catastro, c.tipo_catastro,
+               c.direccion, c.fecha, c.editado_por,
+               e.id AS exp_id, e.expediente, e.caratula
+        FROM catastros c
+        JOIN expedientes e ON e.id = c.expediente_id
+        WHERE {where}
+        ORDER BY c.fecha DESC, c.id DESC
+    ''', params)
+    usuarios_db = fetchall(conn, 'SELECT username FROM usuarios ORDER BY username')
+    conn.close()
+
+    return render_template('reconsideraciones.html',
+                           rows=rows,
+                           desde=desde,
+                           hasta=hasta,
+                           filtro_usuario=filtro_usuario,
+                           usuarios_lista=[u['username'] for u in usuarios_db],
                            usuario=session['usuario'])
 
 
-@app.route('/agregar', methods=['POST'])
+@app.route('/nuevo_expediente')
 @login_required
-def agregar():
-    """Crea un nuevo expediente con su primer catastro."""
+def nuevo_expediente():
+    return render_template('nuevo_expediente.html', usuario=session['usuario'])
+
+
+@app.route('/crear_expediente', methods=['POST'])
+@login_required
+def crear_expediente():
     usuario_actual = session['usuario']
-    data = request.form
+    expediente_num = request.form.get('expediente', '').strip()
+    caratula = request.form.get('caratula', '').strip()
 
     conn = get_db()
-
-    # Crear expediente
     exp_id = fetchscalar(conn, '''
         INSERT INTO expedientes (expediente, caratula, creado_por, activa)
         VALUES (%s, %s, %s, 1) RETURNING id
-    ''', (
-        data.get('expediente', '').strip(),
-        data.get('caratula', '').strip(),
-        usuario_actual,
-    ))
-
-    # Crear catastro
-    c = _calcular_catastro(data)
-    num_vr = obtener_siguiente_vr(conn, usuario_actual)
-    cat_id = fetchscalar(conn, '''
-        INSERT INTO catastros (
-            expediente_id,
-            numero_vr,
-            catastro, tipo_catastro, direccion, fecha,
-            terreno_m2, terreno_frente_lado, terreno_antes_revision, usd_m2_terreno,
-            productiva_hect, productiva_frente_lado, productiva_antes_revision, usd_hect_productiva,
-            con_monte_hect,  con_monte_frente_lado,  con_monte_antes_revision,  usd_hect_con_monte,
-            cerros_hect,     cerros_frente_lado,     cerros_antes_revision,     usd_hect_cerros,
-            sup_edif_m2, edif_frente_lado, edif_antes_revision, usd_m2_edif,
-            valor_dolar,
-            total_usd_terreno, total_usd_edif, total_usd, propuesta, monto,
-            denuncia, gmaps_zona, gmaps_frente,
-            terreno_total, fot, fos, sup_edif_total, pisos_maximos,
-            porcentaje_emprendimiento, costo_usd_m2_emprendimiento, emprendimiento,
-            observaciones, latitud, longitud
-        ) VALUES (
-            %s, %s,
-            %s, %s, %s, %s,
-            %s, %s, %s, %s,
-            %s, %s, %s, %s,
-            %s, %s, %s, %s,
-            %s, %s, %s, %s,
-            %s, %s, %s, %s,
-            %s,
-            %s, %s, %s, %s, %s,
-            %s, %s, %s,
-            %s, %s, %s, %s, %s,
-            %s, %s, %s,
-            %s, %s, %s
-        ) RETURNING id
-    ''', (
-        exp_id, num_vr,
-        c['catastro'], c['tipo_catastro'], c['direccion'], c['fecha'],
-        c['terreno_m2'], c['terreno_frente_lado'], c['terreno_antes_revision'], c['usd_m2_terreno'],
-        c['productiva_hect'], c['productiva_frente_lado'], c['productiva_antes_revision'], c['usd_hect_productiva'],
-        c['con_monte_hect'],  c['con_monte_frente_lado'],  c['con_monte_antes_revision'],  c['usd_hect_con_monte'],
-        c['cerros_hect'],     c['cerros_frente_lado'],     c['cerros_antes_revision'],     c['usd_hect_cerros'],
-        c['sup_edif_m2'], c['edif_frente_lado'], c['edif_antes_revision'], c['usd_m2_edif'],
-        c['valor_dolar'],
-        c['total_usd_terreno'], c['total_usd_edif'], c['total_usd'], c['propuesta'], c['monto'],
-        c['denuncia'], c['gmaps_zona'], c['gmaps_frente'],
-        c['terreno_total'], c['fot'], c['fos'], c['sup_edif_total'], c['pisos_maximos'],
-        c['porcentaje_emprendimiento'], c['costo_usd_m2_emprendimiento'], c['emprendimiento'],
-        c['observaciones'], c['latitud'], c['longitud'],
-    ))
-
-    # Archivos adjuntos opcionales
-    for file in request.files.getlist('archivos'):
-        if not file or not file.filename:
-            continue
-        ext = os.path.splitext(file.filename)[1].lower()
-        if ext not in ALLOWED_EXTENSIONS:
-            continue
-        objeto_minio = f'{cat_id}/{uuid.uuid4().hex}{ext}'
-        file_data = file.read()
-        tamanio = len(file_data)
-        try:
-            minio_client.put_object(MINIO_BUCKET, objeto_minio, BytesIO(file_data), tamanio,
-                                    content_type=file.content_type or 'application/octet-stream')
-            execute(conn, '''
-                INSERT INTO archivos (catastro_id, nombre_original, objeto_minio, tipo, tamanio, subido_por)
-                VALUES (%s, %s, %s, %s, %s, %s)
-            ''', (cat_id, file.filename, objeto_minio, ext, tamanio, usuario_actual))
-        except S3Error as e:
-            print(f'[MinIO] Error al subir archivo: {e}')
-
+    ''', (expediente_num, caratula, usuario_actual))
     conn.commit()
     conn.close()
     return redirect(url_for('expediente_detail', exp_id=exp_id))
@@ -1176,35 +1191,212 @@ def exportar_excel():
     )
 
 
+@app.route('/expediente/<int:exp_id>/nuevo_automotor')
+@login_required
+def nuevo_automotor(exp_id):
+    conn = get_db()
+    exp = fetchone(conn, 'SELECT * FROM expedientes WHERE id = %s', (exp_id,))
+    conn.close()
+    if not exp:
+        return redirect(url_for('index'))
+    return render_template('form_automotor.html',
+                           expediente_obj=exp,
+                           today=datetime.now().strftime('%Y-%m-%d'),
+                           usuario=session['usuario'])
+
+
+@app.route('/expediente/<int:exp_id>/guardar_automotor', methods=['POST'])
+@login_required
+def guardar_automotor(exp_id):
+    usuario_actual = session['usuario']
+    data = request.form
+
+    conn = get_db()
+    exp = fetchone(conn, 'SELECT id FROM expedientes WHERE id = %s', (exp_id,))
+    if not exp:
+        conn.close()
+        return redirect(url_for('index'))
+
+    num_recuento = obtener_siguiente_recuento(conn, usuario_actual)
+    auto_id = fetchscalar(conn, '''
+        INSERT INTO automotores (expediente_id, numero_recuento, vehiculo, anio, valor, fecha, creado_por, observaciones)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s) RETURNING id
+    ''', (
+        exp_id, num_recuento,
+        data.get('vehiculo', '').strip().upper(),
+        parse_int(data.get('anio')),
+        parse_pesos(data.get('valor')),
+        data.get('fecha', ''),
+        usuario_actual,
+        data.get('observaciones', '').strip(),
+    ))
+
+    for file in request.files.getlist('archivos'):
+        if not file or not file.filename:
+            continue
+        ext = os.path.splitext(file.filename)[1].lower()
+        if ext not in ALLOWED_EXTENSIONS:
+            continue
+        objeto_minio = f'auto_{auto_id}/{uuid.uuid4().hex}{ext}'
+        file_data = file.read()
+        tamanio = len(file_data)
+        try:
+            minio_client.put_object(MINIO_BUCKET, objeto_minio, BytesIO(file_data), tamanio,
+                                    content_type=file.content_type or 'application/octet-stream')
+            execute(conn, '''
+                INSERT INTO archivos (automotor_id, nombre_original, objeto_minio, tipo, tamanio, subido_por)
+                VALUES (%s, %s, %s, %s, %s, %s)
+            ''', (auto_id, file.filename, objeto_minio, ext, tamanio, usuario_actual))
+        except S3Error as e:
+            print(f'[MinIO] Error al subir archivo: {e}')
+
+    conn.commit()
+    conn.close()
+    return redirect(url_for('expediente_detail', exp_id=exp_id))
+
+
+@app.route('/automotor/<int:auto_id>')
+@login_required
+def ver_automotor(auto_id):
+    conn = get_db()
+    automotor = fetchone(conn, 'SELECT * FROM automotores WHERE id = %s', (auto_id,))
+    if not automotor:
+        conn.close()
+        return redirect(url_for('index'))
+    exp = fetchone(conn, 'SELECT * FROM expedientes WHERE id = %s', (automotor['expediente_id'],))
+    archivos = fetchall(conn, 'SELECT * FROM archivos WHERE automotor_id = %s ORDER BY fecha_subida DESC', (auto_id,))
+    conn.close()
+    return render_template('form_automotor.html',
+                           viendo=automotor,
+                           expediente_obj=exp,
+                           archivos=archivos,
+                           today=datetime.now().strftime('%Y-%m-%d'),
+                           usuario=session['usuario'])
+
+
+@app.route('/automotor/<int:auto_id>/eliminar', methods=['POST'])
+@login_required
+def eliminar_automotor(auto_id):
+    conn = get_db()
+    automotor = fetchone(conn, 'SELECT expediente_id FROM automotores WHERE id = %s', (auto_id,))
+    if not automotor:
+        conn.close()
+        return redirect(url_for('index'))
+    exp_id = automotor['expediente_id']
+    archivos = fetchall(conn, 'SELECT * FROM archivos WHERE automotor_id = %s', (auto_id,))
+    for arch in archivos:
+        try:
+            minio_client.remove_object(MINIO_BUCKET, arch['objeto_minio'])
+        except S3Error:
+            pass
+    execute(conn, 'DELETE FROM archivos WHERE automotor_id = %s', (auto_id,))
+    execute(conn, 'DELETE FROM automotores WHERE id = %s', (auto_id,))
+    conn.commit()
+    conn.close()
+    return redirect(url_for('expediente_detail', exp_id=exp_id))
+
+
+@app.route('/subir_archivo_automotor/<int:auto_id>', methods=['POST'])
+@login_required
+def subir_archivo_automotor(auto_id):
+    conn = get_db()
+    auto = fetchone(conn, 'SELECT id FROM automotores WHERE id = %s', (auto_id,))
+    if not auto:
+        conn.close()
+        return redirect(url_for('index'))
+
+    file = request.files.get('archivo')
+    if not file or not file.filename:
+        conn.close()
+        return redirect(url_for('ver_automotor', auto_id=auto_id))
+
+    ext = os.path.splitext(file.filename)[1].lower()
+    if ext not in ALLOWED_EXTENSIONS:
+        conn.close()
+        return redirect(url_for('ver_automotor', auto_id=auto_id))
+
+    objeto_minio = f'auto_{auto_id}/{uuid.uuid4().hex}{ext}'
+    data = file.read()
+    tamanio = len(data)
+    try:
+        minio_client.put_object(MINIO_BUCKET, objeto_minio, BytesIO(data), tamanio,
+                                content_type=file.content_type or 'application/octet-stream')
+    except S3Error as e:
+        print(f'[MinIO] Error al subir archivo: {e}')
+        conn.close()
+        return redirect(url_for('ver_automotor', auto_id=auto_id))
+
+    execute(conn, '''
+        INSERT INTO archivos (automotor_id, nombre_original, objeto_minio, tipo, tamanio, subido_por)
+        VALUES (%s, %s, %s, %s, %s, %s)
+    ''', (auto_id, file.filename, objeto_minio, ext, tamanio, session['usuario']))
+    conn.commit()
+    conn.close()
+    return redirect(url_for('ver_automotor', auto_id=auto_id))
+
+
+@app.route('/eliminar_archivo_automotor/<int:id>', methods=['POST'])
+@login_required
+def eliminar_archivo_automotor(id):
+    conn = get_db()
+    archivo = fetchone(conn, 'SELECT * FROM archivos WHERE id = %s', (id,))
+    if not archivo:
+        conn.close()
+        return redirect(url_for('index'))
+    try:
+        minio_client.remove_object(MINIO_BUCKET, archivo['objeto_minio'])
+    except S3Error as e:
+        print(f'[MinIO] Error al eliminar objeto: {e}')
+    execute(conn, 'DELETE FROM archivos WHERE id = %s', (id,))
+    conn.commit()
+    conn.close()
+    return redirect(url_for('ver_automotor', auto_id=archivo['automotor_id']))
+
+
 @app.route('/configurar_vr', methods=['GET', 'POST'])
 @login_required
 def configurar_vr():
     conn = get_db()
     usuario_actual = session['usuario']
-    
+
     if request.method == 'POST':
+        tipo = request.form.get('tipo', 'vr')
         try:
-            proximo_vr = int(request.form.get('proximo_vr', 1))
-            if proximo_vr < 1: proximo_vr = 1
-        except:
-            proximo_vr = 1
-            
-        execute(conn, '''
-            INSERT INTO contadores_vr (usuario, ultimo_vr)
-            VALUES (%s, %s)
-            ON CONFLICT (usuario) DO UPDATE
-            SET ultimo_vr = EXCLUDED.ultimo_vr
-        ''', (usuario_actual, proximo_vr - 1))
+            proximo = int(request.form.get('proximo', 1))
+            if proximo < 1:
+                proximo = 1
+        except Exception:
+            proximo = 1
+
+        if tipo == 'recuento':
+            execute(conn, '''
+                INSERT INTO contadores_recuento (usuario, ultimo_recuento)
+                VALUES (%s, %s)
+                ON CONFLICT (usuario) DO UPDATE
+                SET ultimo_recuento = EXCLUDED.ultimo_recuento
+            ''', (usuario_actual, proximo - 1))
+        else:
+            execute(conn, '''
+                INSERT INTO contadores_vr (usuario, ultimo_vr)
+                VALUES (%s, %s)
+                ON CONFLICT (usuario) DO UPDATE
+                SET ultimo_vr = EXCLUDED.ultimo_vr
+            ''', (usuario_actual, proximo - 1))
         conn.commit()
         conn.close()
         return redirect(url_for('index'))
-        
+
     ultimo_vr = fetchscalar(conn, 'SELECT ultimo_vr FROM contadores_vr WHERE usuario = %s', (usuario_actual,))
+    ultimo_recuento = fetchscalar(conn, 'SELECT ultimo_recuento FROM contadores_recuento WHERE usuario = %s', (usuario_actual,))
     conn.close()
-    
+
     proximo_actual = 1 if ultimo_vr is None else ultimo_vr + 1
-        
-    return render_template('configurar_vr.html', proximo_actual=proximo_actual, usuario=usuario_actual)
+    proximo_recuento = 1 if ultimo_recuento is None else ultimo_recuento + 1
+
+    return render_template('configurar_vr.html',
+                           proximo_actual=proximo_actual,
+                           proximo_recuento=proximo_recuento,
+                           usuario=usuario_actual)
 
 
 init_db()

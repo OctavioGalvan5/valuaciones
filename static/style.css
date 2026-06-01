@@ -1,29 +1,36 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
 
 :root {
-    --bg:          #eef1f8;
+    --brand-teal:     #0C4566;
+    --brand-teal-dim: #F0F5F8;
+    --brand-red:      #A61B1B;
+    --brand-red-dim:  #FDF2F2;
+
+    --bg:          #F4F6F8;
     --bg-card:     #ffffff;
-    --bg-input:    #f9fafb;
-    --border:      #e2e6ed;
-    --border-dark: #c4cad6;
-    --text-1:      #0f172a;
+    --bg-input:    #f8fafc;
+    --border:      #E2E8F0;
+    --border-dark: #CBD5E1;
+    --text-1:      #0F172A;
     --text-2:      #475569;
-    --text-3:      #94a3b8;
-    --accent:      #1d4ed8;
-    --accent-mid:  #2563eb;
-    --accent-dim:  #eff4ff;
-    --red:         #b91c1c;
-    --red-dim:     #fef2f2;
-    --green:       #15803d;
-    --green-dim:   #f0fdf4;
-    --amber:       #92400e;
-    --amber-dim:   #fffbeb;
-    --teal:        #0f766e;
-    --teal-dim:    #f0fdfa;
-    --radius:      8px;
-    --shadow:      0 1px 3px rgba(0,0,0,0.05), 0 4px 16px rgba(0,0,0,0.05);
-    --shadow-md:   0 4px 20px rgba(0,0,0,0.09), 0 1px 4px rgba(0,0,0,0.04);
-    --shadow-lg:   0 8px 40px rgba(0,0,0,0.15), 0 2px 8px rgba(0,0,0,0.06);
+    --text-3:      #94A3B8;
+    
+    --accent:      var(--brand-teal);
+    --accent-mid:  #125E85;
+    --accent-dim:  var(--brand-teal-dim);
+    
+    --red:         var(--brand-red);
+    --red-dim:     var(--brand-red-dim);
+    
+    --green:       #059669;
+    --green-dim:   #ECFDF5;
+    --amber:       #D97706;
+    --amber-dim:   #FEF3C7;
+    
+    --radius:      12px;
+    --shadow:      0 1px 3px rgba(0,0,0,0.02), 0 4px 12px rgba(12, 69, 102, 0.05);
+    --shadow-md:   0 4px 20px rgba(12, 69, 102, 0.08), 0 1px 4px rgba(0,0,0,0.02);
+    --shadow-lg:   0 8px 40px rgba(12, 69, 102, 0.12), 0 2px 8px rgba(0,0,0,0.04);
     --ease-out:    cubic-bezier(0.23, 1, 0.32, 1);
     --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
 }
@@ -45,23 +52,55 @@ body {
 
 /* ---- Header ---- */
 .app-header {
-    background: linear-gradient(90deg, #0f2166 0%, #1d4ed8 60%, #2563eb 100%);
+    background: var(--brand-teal);
     padding: 0 32px;
-    height: 58px;
+    height: 64px;
     display: flex;
     align-items: center;
     justify-content: space-between;
     position: sticky;
     top: 0;
     z-index: 100;
-    box-shadow: 0 2px 12px rgba(15, 33, 102, 0.35);
+    box-shadow: 0 4px 20px rgba(13, 78, 92, 0.15);
+}
+
+.header-brand {
+    display: flex;
+    align-items: center;
+    text-decoration: none;
+    transition: transform 150ms var(--ease-out);
+}
+
+.header-brand:hover {
+    transform: translateY(-0.5px);
+}
+
+.header-logo {
+    height: 38px;
+    width: auto;
+    display: block;
+}
+
+.header-divider {
+    width: 1px;
+    height: 22px;
+    background: rgba(255, 255, 255, 0.22);
+    margin: 0 16px;
+}
+
+.header-title {
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: #ffffff;
+    letter-spacing: 0.8px;
+    text-transform: uppercase;
 }
 
 .app-header h1 {
-    font-size: 0.9rem;
-    font-weight: 600;
+    font-size: 0.95rem;
+    font-weight: 700;
     color: rgba(255,255,255,0.92);
-    letter-spacing: 0.6px;
+    letter-spacing: 0.8px;
     text-transform: uppercase;
 }
 
@@ -112,8 +151,8 @@ body {
 
 .card-header {
     padding: 13px 20px;
-    background: linear-gradient(90deg, #0f2166, #2563eb);
-    color: #dbeafe;
+    background: linear-gradient(90deg, var(--brand-teal), #125E85);
+    color: #ffffff;
     font-weight: 600;
     font-size: 0.82rem;
     letter-spacing: 0.8px;
@@ -224,14 +263,14 @@ body {
     background: var(--accent);
     color: #fff;
     border-color: var(--accent);
-    box-shadow: 0 1px 4px rgba(29,78,216,0.25);
+    box-shadow: 0 1px 4px rgba(12,69,102,0.25);
 }
 
 @media (hover: hover) and (pointer: fine) {
     .btn-primary:hover {
-        background: #1e40af;
-        border-color: #1e40af;
-        box-shadow: 0 3px 10px rgba(29,78,216,0.4);
+        background: #072C41;
+        border-color: #072C41;
+        box-shadow: 0 3px 10px rgba(12,69,102,0.4);
     }
 }
 
@@ -248,11 +287,11 @@ body {
 .btn-warning {
     background: var(--accent-dim);
     color: var(--accent);
-    border-color: #bfdbfe;
+    border-color: #a5d2db;
 }
 
 @media (hover: hover) and (pointer: fine) {
-    .btn-warning:hover { background: #dbeafe; }
+    .btn-warning:hover { background: #e0ecef; }
 }
 
 .btn-success {
@@ -272,7 +311,7 @@ body {
 }
 
 @media (hover: hover) and (pointer: fine) {
-    .btn-edit:hover { background: var(--accent-dim); color: var(--accent); border-color: #bfdbfe; }
+    .btn-edit:hover { background: var(--accent-dim); color: var(--accent); border-color: #a5d2db; }
 }
 
 .btn-sm {
@@ -324,15 +363,15 @@ body {
 }
 
 .excel-table thead th {
-    background: linear-gradient(135deg, #0f2166, #2563eb);
-    color: #bfdbfe;
+    background: linear-gradient(135deg, var(--brand-teal), #125E85);
+    color: #e6f3f5;
     font-weight: 500;
     font-size: 0.7rem;
     text-transform: uppercase;
     letter-spacing: 0.5px;
     padding: 10px 12px;
     text-align: center;
-    border: 1px solid #1e40af;
+    border: 1px solid #08324a;
 }
 
 .excel-table thead th.row-header { width: 110px; }
@@ -500,8 +539,8 @@ table {
 }
 
 thead th {
-    background: linear-gradient(135deg, #0f2166, #2563eb);
-    color: #bfdbfe;
+    background: linear-gradient(135deg, var(--brand-teal), #125E85);
+    color: #e6f3f5;
     font-weight: 500;
     font-size: 0.68rem;
     text-transform: uppercase;
@@ -801,8 +840,8 @@ tbody td.propuesta {
 
 .modal-header {
     padding: 16px 20px;
-    background: linear-gradient(90deg, #0f2166, #2563eb);
-    color: #dbeafe;
+    background: linear-gradient(90deg, var(--brand-teal), #125E85);
+    color: #ffffff;
     border-radius: var(--radius) var(--radius) 0 0;
 }
 
@@ -844,6 +883,51 @@ tbody td.propuesta {
     }
 }
 
+/* ---- Header buttons ---- */
+.btn-header {
+    font-size: 0.75rem;
+    color: #fff;
+    text-decoration: none;
+    padding: 5px 12px;
+    border-radius: 6px;
+    transition: background 150ms ease-out, transform 120ms ease-out, border-color 150ms ease-out, box-shadow 150ms ease-out;
+    font-weight: 500;
+    border: 1px solid rgba(255,255,255,0.2);
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.btn-header-purple {
+    background: rgba(167, 139, 250, 0.15);
+    border-color: rgba(167, 139, 250, 0.35);
+    color: #e9e3ff !important;
+}
+
+@media (hover: hover) and (pointer: fine) {
+    .btn-header-purple:hover {
+        background: rgba(167, 139, 250, 0.3);
+        border-color: rgba(167, 139, 250, 0.6);
+        color: #fff !important;
+        box-shadow: 0 0 10px rgba(167, 139, 250, 0.2);
+    }
+}
+
+.btn-header-amber {
+    background: rgba(245, 158, 11, 0.15);
+    border-color: rgba(245, 158, 11, 0.35);
+    color: #ffeccf !important;
+}
+
+@media (hover: hover) and (pointer: fine) {
+    .btn-header-amber:hover {
+        background: rgba(245, 158, 11, 0.3);
+        border-color: rgba(245, 158, 11, 0.6);
+        color: #fff !important;
+        box-shadow: 0 0 10px rgba(245, 158, 11, 0.2);
+    }
+}
+
 .header-user-icon {
     color: #86efac;
     font-size: 0.55rem;
@@ -864,8 +948,8 @@ tbody td.propuesta {
 /* ---- Login page ---- */
 .login-body {
     background-image:
-        radial-gradient(circle at 1px 1px, rgba(255,255,255,0.07) 1px, transparent 0),
-        linear-gradient(135deg, #0f2166 0%, #1d4ed8 50%, #2563eb 100%);
+        radial-gradient(circle at 1px 1px, rgba(255,255,255,0.04) 1px, transparent 0),
+        linear-gradient(135deg, #062329 0%, #0d4e5c 50%, #177184 100%);
     background-size: 28px 28px, 100% 100%;
     min-height: 100vh;
     display: flex;
@@ -875,7 +959,7 @@ tbody td.propuesta {
 
 .login-wrapper {
     width: 100%;
-    max-width: 400px;
+    max-width: 440px;
     padding: 20px;
     animation: login-in 500ms var(--ease-out) both;
 }
@@ -887,44 +971,43 @@ tbody td.propuesta {
 
 .login-box {
     background: #fff;
-    border-radius: 12px;
-    box-shadow: 0 24px 64px rgba(0,0,0,0.3), 0 4px 16px rgba(0,0,0,0.15);
+    border-radius: 16px;
+    box-shadow: 0 24px 64px rgba(6, 35, 41, 0.4), 0 4px 16px rgba(0,0,0,0.08);
     overflow: hidden;
+    border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .login-header {
-    background: linear-gradient(135deg, #0f2166, #2563eb);
-    padding: 36px 28px 28px;
+    background: #ffffff;
+    padding: 40px 32px 20px;
     text-align: center;
-    color: #fff;
+    color: var(--text-1);
+    border-bottom: 1px solid var(--border);
 }
 
 .login-logo {
-    width: 52px;
-    height: 52px;
-    background: rgba(255,255,255,0.15);
-    border: 2px solid rgba(255,255,255,0.3);
-    border-radius: 12px;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 1.1rem;
-    font-weight: 800;
-    color: #fff;
-    margin: 0 auto 16px;
-    letter-spacing: 1px;
+    margin: 0 auto 24px;
+}
+
+.login-logo img {
+    height: 72px;
+    width: auto;
 }
 
 .login-header h1 {
-    font-size: 1.1rem;
+    font-size: 1.25rem;
     font-weight: 700;
-    color: rgba(255,255,255,0.95);
+    color: var(--brand-teal);
     margin-bottom: 6px;
+    letter-spacing: 0.5px;
 }
 
 .login-header p {
-    font-size: 0.8rem;
-    color: rgba(255,255,255,0.55);
+    font-size: 0.85rem;
+    color: var(--text-2);
 }
 
 .login-body-inner {
@@ -1128,8 +1211,8 @@ tbody td.propuesta {
     align-items: center;
     justify-content: space-between;
     padding: 10px 16px;
-    background: linear-gradient(90deg, #0f2166, #2563eb);
-    color: #dbeafe;
+    background: linear-gradient(90deg, var(--brand-teal), #125E85);
+    color: #ffffff;
     font-size: 0.8rem;
     font-weight: 500;
     gap: 16px;

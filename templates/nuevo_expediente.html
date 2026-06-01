@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nuevo Expediente — Sistema de Valuaciones</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+
+<body>
+
+    <header class="app-header">
+        <h1>Nuevo Expediente</h1>
+        <div class="header-stats">
+            <a href="{{ url_for('index') }}" class="btn-logout">← Volver a lista</a>
+            <div class="stat-badge">
+                <span class="header-user-icon">&#9679;</span> {{ usuario }}
+            </div>
+            <a href="{{ url_for('logout') }}" class="btn-logout">Cerrar sesión</a>
+        </div>
+    </header>
+
+    <div class="container">
+        <div class="card" style="max-width: 560px; margin: 40px auto;">
+            <div class="card-header">Datos del Expediente</div>
+            <div class="card-body">
+                <form method="POST" action="{{ url_for('crear_expediente') }}">
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label>N° de Expediente <span style="color:#ef4444;">*</span></label>
+                            <input type="text" name="expediente" required
+                                   placeholder="Ej: 728306/21" autofocus>
+                        </div>
+                        <div class="form-group">
+                            <label>Carátula <span style="color:#ef4444;">*</span></label>
+                            <input type="text" name="caratula" required
+                                   placeholder="Carátula del expediente">
+                        </div>
+                    </div>
+
+                    <div style="display:flex; justify-content:flex-end; gap:12px; margin-top:24px; padding-top:20px; border-top:1px solid #e5e7eb;">
+                        <a href="{{ url_for('index') }}"
+                           style="padding:8px 18px; border:1px solid #d1d5db; border-radius:6px; font-size:0.85rem; font-weight:500; color:#4b5563; text-decoration:none; background:#fff;">
+                            Cancelar
+                        </a>
+                        <button type="submit" class="btn btn-primary">Crear Expediente</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+</body>
+</html>

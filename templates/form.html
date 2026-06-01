@@ -7,8 +7,7 @@
     <title>
         {% if viendo %}Ver VR #{{ viendo.id }}
         {% elif reconsiderando %}Reconsiderar VR #{{ reconsiderando.id }}
-        {% elif expediente_obj %}Nuevo Catastro &mdash; Exp. {{ expediente_obj.expediente }}
-        {% else %}Nueva Valuación
+        {% else %}Nuevo Catastro &mdash; Exp. {{ expediente_obj.expediente }}
         {% endif %} — Sistema de Valuaciones
     </title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
@@ -18,13 +17,18 @@
 
     <!-- Header -->
     <header class="app-header">
-        <h1>
-            {% if viendo %}Ver Valuación &mdash; VR #{{ viendo.id }}
-            {% elif reconsiderando %}Reconsiderar Valuación &mdash; VR #{{ reconsiderando.id }}
-            {% elif expediente_obj %}Nuevo Catastro &mdash; Exp. {{ expediente_obj.expediente }}
-            {% else %}Nueva Valuación
-            {% endif %}
-        </h1>
+        <div class="header-brand">
+            <a href="{{ url_for('index') }}">
+                <img src="{{ url_for('static', filename='logo.svg') }}" alt="Caja Abogados" class="header-logo">
+            </a>
+            <span class="header-divider"></span>
+            <span class="header-title">
+                {% if viendo %}VR #{{ viendo.id }}
+                {% elif reconsiderando %}Reconsideración #{{ reconsiderando.id }}
+                {% else %}Nuevo Catastro
+                {% endif %}
+            </span>
+        </div>
         <div class="header-stats">
             {% if expediente_obj %}
             <a href="{{ url_for('expediente_detail', exp_id=expediente_obj.id) }}" class="btn-logout">← Volver al expediente</a>
@@ -57,8 +61,7 @@
             <div class="card-header">
                 {% if viendo %}Ver Valuación &mdash; VR #{{ viendo.id }}
                 {% elif reconsiderando %}Reconsiderar Valuación &mdash; VR #{{ reconsiderando.id }}
-                {% elif expediente_obj %}Nuevo Catastro &mdash; Exp. {{ expediente_obj.expediente }}
-                {% else %}Nueva Valuación
+                {% else %}Nuevo Catastro &mdash; Exp. {{ expediente_obj.expediente }}
                 {% endif %}
             </div>
             <div class="card-body">
@@ -78,8 +81,7 @@
                 <form id="form-valuacion" method="POST" enctype="multipart/form-data"
                     action="
                     {%- if reconsiderando -%}{{ url_for('guardar_reconsideracion', cat_id=reconsiderando.id) }}
-                    {%- elif expediente_obj -%}{{ url_for('guardar_catastro', exp_id=expediente_obj.id) }}
-                    {%- else -%}{{ url_for('agregar') }}
+                    {%- else -%}{{ url_for('guardar_catastro', exp_id=expediente_obj.id) }}
                     {%- endif -%}">
 
                     {% if reconsiderando %}
@@ -99,8 +101,6 @@
                             <input type="text" value="{% if datos %}{{ datos.id }}{% else %}Auto{% endif %}" readonly>
                         </div>
 
-                        {% if expediente_obj %}
-                        {# Expediente existente: mostrar como readonly #}
                         <div class="form-group">
                             <label>Expediente</label>
                             <input type="text" value="{{ expediente_obj.expediente or '—' }}" readonly>
@@ -109,19 +109,6 @@
                             <label>Carátula</label>
                             <input type="text" value="{{ expediente_obj.caratula or '—' }}" readonly>
                         </div>
-                        {% else %}
-                        {# Nueva valuación: campos editables #}
-                        <div class="form-group">
-                            <label>Expediente</label>
-                            <input type="text" name="expediente" placeholder="123456/12"
-                                value="{{ datos.expediente if datos else '' }}" {% if readonly %}readonly{% endif %}>
-                        </div>
-                        <div class="form-group">
-                            <label>Carátula</label>
-                            <input type="text" name="caratula" placeholder="Carátula del expediente"
-                                value="{{ datos.caratula if datos else '' }}" {% if readonly %}readonly{% endif %}>
-                        </div>
-                        {% endif %}
                     </div>
 
                     <div class="section-subtitle" style="margin-top:14px;">Inmueble</div>

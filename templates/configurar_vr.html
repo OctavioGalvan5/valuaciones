@@ -64,7 +64,13 @@
 
     <!-- Header -->
     <header class="app-header">
-        <h1>Sistema de Valuaciones</h1>
+        <div class="header-brand">
+            <a href="{{ url_for('index') }}">
+                <img src="{{ url_for('static', filename='logo.svg') }}" alt="Caja Abogados" class="header-logo">
+            </a>
+            <span class="header-divider"></span>
+            <span class="header-title">Configuración</span>
+        </div>
         <div class="header-stats">
             <a href="{{ url_for('index') }}" class="btn-logout">← Volver a lista</a>
             <div class="stat-badge">
@@ -75,32 +81,57 @@
     </header>
 
     <div class="container">
+
+        <div class="alert alert-info" style="max-width:500px; margin: 20px auto 0; font-size: 0.9rem;">
+            Esta configuración es individual y exclusiva para <strong>{{ usuario }}</strong>. No afecta los contadores de los demás usuarios.
+        </div>
+
+        <!-- VR Catastros -->
         <div class="card config-card">
             <div class="card-header">
-                Configuración de Numeración VR
+                Numeración VR — Catastros
             </div>
             <div class="card-body">
-                <div class="alert alert-info" style="margin-bottom: 20px; font-size: 0.9rem;">
-                    <strong>ℹ️ Aclaración importante:</strong> Esta configuración es individual y exclusiva para el usuario <strong>{{ usuario }}</strong>. Cambiar tu número de VR no afectará ni alterará los números de los demás tasadores.
-                </div>
-
                 <p class="config-text">
-                    El sistema indica que tu próxima valuación se guardará bajo el número: <strong>VR #{{ proximo_actual }}</strong>.
+                    Tu próxima valuación de catastro se guardará bajo el número: <strong>VR #{{ proximo_actual }}</strong>.
                 </p>
-
                 <form method="POST">
+                    <input type="hidden" name="tipo" value="vr">
                     <div class="form-group input-wrapper">
                         <label style="text-align: center; margin-bottom: 10px; display: block;">¿Desde qué número querés que empiece tu próximo VR?</label>
-                        <input type="number" name="proximo_vr" value="{{ proximo_actual }}" min="1" class="form-control config-input" required>
+                        <input type="number" name="proximo" value="{{ proximo_actual }}" min="1" class="form-control config-input" required>
                     </div>
-                    
                     <div class="form-actions">
                         <a href="{{ url_for('index') }}">Cancelar</a>
-                        <button type="submit" class="btn btn-primary">Guardar Configuración</button>
+                        <button type="submit" class="btn btn-primary">Guardar</button>
                     </div>
                 </form>
             </div>
         </div>
+
+        <!-- Recuento Automotores -->
+        <div class="card config-card" style="margin-top: 24px;">
+            <div class="card-header" style="background: #059669;">
+                Numeración Recuento — Automotores
+            </div>
+            <div class="card-body">
+                <p class="config-text">
+                    Tu próximo automotor se guardará bajo el número: <strong>Recuento #{{ proximo_recuento }}</strong>.
+                </p>
+                <form method="POST">
+                    <input type="hidden" name="tipo" value="recuento">
+                    <div class="form-group input-wrapper">
+                        <label style="text-align: center; margin-bottom: 10px; display: block;">¿Desde qué número querés que empiece tu próximo Recuento?</label>
+                        <input type="number" name="proximo" value="{{ proximo_recuento }}" min="1" class="form-control config-input" required style="color:#059669;">
+                    </div>
+                    <div class="form-actions">
+                        <a href="{{ url_for('index') }}">Cancelar</a>
+                        <button type="submit" class="btn btn-primary" style="background:#059669;">Guardar</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
     </div>
 
 </body>

@@ -12,7 +12,13 @@
 
     <!-- Header -->
     <header class="app-header">
-        <h1>Sistema de Valuaciones</h1>
+        <div class="header-brand">
+            <a href="{{ url_for('index') }}">
+                <img src="{{ url_for('static', filename='logo.svg') }}" alt="Caja Abogados" class="header-logo">
+            </a>
+            <span class="header-divider"></span>
+            <span class="header-title">Tasaciones</span>
+        </div>
         <div class="header-stats">
             <div class="stat-badge">
                 Total expedientes: <span class="num">{{ total }}</span>
@@ -20,7 +26,8 @@
             <div class="stat-badge">
                 <span class="header-user-icon">&#9679;</span> {{ usuario }}
             </div>
-            <a href="{{ url_for('configurar_vr') }}" class="btn-logout" style="background:#eab308; color:#fff; border:none; margin-right:8px;">Configurar VR</a>
+            <a href="{{ url_for('reconsideraciones') }}" class="btn-header btn-header-purple" style="margin-right:8px;">Reconsideraciones</a>
+            <a href="{{ url_for('configurar_vr') }}" class="btn-header btn-header-amber" style="margin-right:8px;">Configurar VR</a>
             <a href="{{ url_for('logout') }}" class="btn-logout">Cerrar sesión</a>
         </div>
     </header>
@@ -38,7 +45,7 @@
         <div class="card">
             <div class="card-header" style="display:flex; align-items:center; justify-content:space-between;">
                 <span>Expedientes</span>
-                <a href="{{ url_for('nueva') }}" class="btn btn-primary btn-sm">+ Nueva Valuación</a>
+                <a href="{{ url_for('nuevo_expediente') }}" class="btn btn-primary btn-sm">+ Nuevo Expediente</a>
             </div>
             <div class="card-body">
 
@@ -102,6 +109,7 @@
                                 <th>Expediente</th>
                                 <th>Carátula</th>
                                 <th>Catastros</th>
+                                <th>Automotores</th>
                                 <th>Creado por</th>
                                 <th>Acciones</th>
                             </tr>
@@ -120,6 +128,7 @@
                                 </td>
                                 <td>{{ e.caratula or '—' }}</td>
                                 <td class="number">{{ e.num_catastros }}</td>
+                                <td class="number">{{ e.num_automotores or 0 }}</td>
                                 <td class="td-user">{{ e.creado_por or '—' }}</td>
                                 <td>
                                     <div class="actions-cell">

@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reconsideraciones — Sistema de Valuaciones</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+
+<body>
+
+    <header class="app-header">
+        <div class="header-brand">
+            <a href="{{ url_for('index') }}">
+                <img src="{{ url_for('static', filename='logo.svg') }}" alt="Caja Abogados" class="header-logo">
+            </a>
+            <span class="header-divider"></span>
+            <span class="header-title">Reconsideraciones</span>
+        </div>
+        <div class="header-stats">
+            <a href="{{ url_for('index') }}" class="btn-logout">← Volver a lista</a>
+            <div class="stat-badge">
+                <span class="header-user-icon">&#9679;</span> {{ usuario }}
+            </div>
+            <a href="{{ url_for('logout') }}" class="btn-logout">Cerrar sesión</a>
+        </div>
+    </header>
+
+    <div class="container">
+        <div class="card">
+            <div class="card-header">Filtros</div>
+            <div class="card-body">
+                <form method="GET" action="{{ url_for('reconsideraciones') }}" class="filtros-form">
+                    <div class="filtros-row">
+                        <div class="filtro-group">
+                            <label>Desde</label>
+                            <input type="date" name="desde" value="{{ desde }}">
+                        </div>
+                        <div class="filtro-group">
+                            <label>Hasta</label>
+                            <input type="date" name="hasta" value="{{ hasta }}">
+                        </div>
+                        <div class="filtro-group">
+                            <label>Usuario</label>
+                            <select name="usuario" class="form-select">
+                                <option value="">Todos</option>
+                                {% for u in usuarios_lista %}
+                                <option value="{{ u }}" {% if filtro_usuario == u %}selected{% endif %}>{{ u }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="filtro-actions">
+                            <button type="submit" class="btn btn-primary btn-sm">Filtrar</button>
+                            {% if desde or hasta or filtro_usuario %}
+                            <a href="{{ url_for('reconsideraciones') }}" class="btn btn-sm btn-edit">Limpiar</a>
+                            {% endif %}
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Resumen -->
+        <div style="display:flex; align-items:center; gap:16px; margin: 20px 0 12px;">
+            <div class="stat-badge" style="font-size:1rem; padding: 10px 20px; background:#1e3a8a; color:#fff; border-radius:8px;">
+                Total: <strong>{{ rows|length }}</strong> reconsideración{{ 'es' if rows|length != 1 else '' }}
+                {% if desde or hasta or filtro_usuario %} en el período seleccionado{% endif %}
+            </div>
+
+            {% if rows %}
+            <!-- Desglose por usuario -->
+            {% set por_usuario = {} %}
+            {% for r in rows %}
+                {% set u = r.editado_por or '—' %}
+                {% if u not in por_usuario %}
+                    {% set _ = por_usuario.update({u: 0}) %}
+                {% endif %}
+                {% set _ = por_usuario.update({u: por_usuario[u] + 1}) %}
+            {% endfor %}
+            {% for u, cant in por_usuario.items() %}
+            <div class="stat-badge" style="font-size:0.88rem; padding: 8px 14px;">
+                {{ u }}: <strong>{{ cant }}</strong>
+            </div>
+            {% endfor %}
+            {% endif %}
+        </div>
+
+        <!-- Tabla -->
+        <div class="card">
+            <div class="card-header">
+                Detalle de Reconsideraciones
+            </div>
+            <div class="card-body">
+                {% if rows %}
+                <div class="table-wrapper">
+                    <table id="tabla-valuaciones">
+                        <thead>
+                            <tr>
+                                <th>VR #</th>
+                                <th>Expediente</th>
+                                <th>Carátula</th>
+                                <th>Catastro</th>
+                                <th>Tipo</th>
+                                <th>Dirección</th>
+                                <th>Reconsiderada por</th>
+                                <th>Fecha</th>
+                                <th>Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for r in rows %}
+                            <tr>
+                                <td class="number">{{ r.numero_vr or r.id }}</td>
+                                <td>
+                                    <a href="{{ url_for('expediente_detail', exp_id=r.exp_id) }}" class="link-expediente">
+                                        {{ r.expediente or '—' }}
+                                    </a>
+                                </td>
+                                <td>{{ r.caratula or '—' }}</td>
+                                <td>{{ r.catastro or '—' }}</td>
+                                <td>{{ r.tipo_catastro or '—' }}</td>
+                                <td>{{ r.direccion or '—' }}</td>
+                                <td class="td-user">
+                                    <strong>{{ r.editado_por or '—' }}</strong>
+                                </td>
+                                <td>{{ r.fecha.split('-')|reverse|join('/') if r.fecha else '—' }}</td>
+                                <td>
+                                    <a href="{{ url_for('ver', cat_id=r.id) }}" class="btn btn-sm btn-success">Ver</a>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="empty-state">
+                    <p>No se encontraron reconsideraciones{% if desde or hasta or filtro_usuario %} con los filtros aplicados{% endif %}.</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+</body>
+</html>
