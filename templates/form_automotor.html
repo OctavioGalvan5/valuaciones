@@ -125,10 +125,11 @@
                         <label>Año</label>
                         <input type="text" value="{{ viendo.anio or '—' }}" readonly>
                     </div>
+                    {% set moneda = viendo.valor_moneda or 'ARS' %}
                     <div class="form-group">
-                        <label>Valor en pesos</label>
+                        <label>Valor ({{ 'Pesos' if moneda == 'ARS' else 'Dólares' }})</label>
                         <input type="text"
-                               value="$ {{ '{:,.0f}'.format(viendo.valor).replace(',', '.') if viendo.valor else '—' }}"
+                               value="{{ ('$ ' if moneda == 'ARS' else 'U$S ') + '{:,.0f}'.format(viendo.valor).replace(',', '.') if viendo.valor else '—' }}"
                                readonly style="font-weight: 700; color: #1e3a8a;">
                     </div>
                     <div class="form-group">
@@ -138,9 +139,9 @@
                                readonly>
                     </div>
                     <div class="form-group">
-                        <label>Valor en dólares</label>
+                        <label>Equivalente en {{ 'dólares' if moneda == 'ARS' else 'pesos' }}</label>
                         <input type="text"
-                               value="{% if viendo.valor and viendo.cotizacion_dolar and viendo.cotizacion_dolar > 0 %}U$S {{ '{:,.2f}'.format(viendo.valor / viendo.cotizacion_dolar).replace(',', '.') }}{% else %}—{% endif %}"
+                               value="{% if viendo.valor and viendo.cotizacion_dolar and viendo.cotizacion_dolar > 0 %}{% if moneda == 'ARS' %}U$S {{ '{:,.2f}'.format(viendo.valor / viendo.cotizacion_dolar).replace(',', '.') }}{% else %}$ {{ '{:,.0f}'.format(viendo.valor * viendo.cotizacion_dolar).replace(',', '.') }}{% endif %}{% else %}—{% endif %}"
                                readonly style="font-weight: 700; color: #059669;">
                     </div>
                     <div class="form-group">
@@ -190,7 +191,14 @@
                                    placeholder="2024">
                         </div>
                         <div class="form-group">
-                            <label>Valor ($) <span style="color:#ef4444;">*</span></label>
+                            <label>
+                                Valor <span style="color:#ef4444;">*</span>
+                                <select name="valor_moneda" id="valor_moneda" onchange="calcEquiv()"
+                                        style="margin-left:6px; font-size:0.78rem; padding:2px 6px; border-radius:4px; border:1px solid #d1d5db; background:#f9fafb; font-weight:600; cursor:pointer;">
+                                    <option value="ARS" {% if not reconsiderando or not reconsiderando.valor_moneda or reconsiderando.valor_moneda == 'ARS' %}selected{% endif %}>$ Pesos</option>
+                                    <option value="USD" {% if reconsiderando and reconsiderando.valor_moneda == 'USD' %}selected{% endif %}>U$S Dólar</option>
+                                </select>
+                            </label>
                             <input type="text" name="valor" id="valor" required
                                    value="{{ reconsiderando.valor if reconsiderando else '' }}"
                                    placeholder="Ej: 25495100"
@@ -321,15 +329,22 @@
         }
 
         function calcEquiv() {
-            var valorEl = document.getElementById('valor');
-            var cotizEl = document.getElementById('cotizacion_dolar');
-            var equivEl = document.getElementById('valor_equiv');
+            var valorEl  = document.getElementById('valor');
+            var cotizEl  = document.getElementById('cotizacion_dolar');
+            var equivEl  = document.getElementById('valor_equiv');
+            var monedaEl = document.getElementById('valor_moneda');
             if (!valorEl || !cotizEl || !equivEl) return;
-            var valor   = parseFloat(valorEl.value) || 0;
-            var cotiz   = parseFloat(cotizEl.value) || 0;
+            var valor  = parseFloat(valorEl.value) || 0;
+            var cotiz  = parseFloat(cotizEl.value) || 0;
+            var moneda = monedaEl ? monedaEl.value : 'ARS';
             if (valor > 0 && cotiz > 0) {
-                var enUsd = valor / cotiz;
-                equivEl.textContent = '≈ U$S ' + enUsd.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+                if (moneda === 'ARS') {
+                    var enUsd = valor / cotiz;
+                    equivEl.textContent = '≈ U$S ' + enUsd.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+                } else {
+                    var enArs = valor * cotiz;
+                    equivEl.textContent = '≈ $ ' + enArs.toLocaleString('es-AR', {maximumFractionDigits: 0});
+                }
             } else {
                 equivEl.textContent = '';
             }

@@ -286,8 +286,9 @@ def init_db():
     execute(conn, "ALTER TABLE catastros ADD COLUMN IF NOT EXISTS propuesta_moneda TEXT DEFAULT 'USD'")
     execute(conn, "ALTER TABLE catastros ADD COLUMN IF NOT EXISTS monto_moneda TEXT DEFAULT 'ARS'")
 
-    # Cotización dólar en automotores
+    # Cotización dólar y moneda del valor en automotores
     execute(conn, 'ALTER TABLE automotores ADD COLUMN IF NOT EXISTS cotizacion_dolar NUMERIC DEFAULT 0')
+    execute(conn, "ALTER TABLE automotores ADD COLUMN IF NOT EXISTS valor_moneda TEXT DEFAULT 'ARS'")
 
     # ---- Tabla usuarios ----
     execute(conn, '''
@@ -1293,8 +1294,8 @@ def guardar_automotor(exp_id):
 
     num_recuento = obtener_siguiente_recuento(conn, usuario_actual)
     auto_id = fetchscalar(conn, '''
-        INSERT INTO automotores (expediente_id, numero_recuento, vehiculo, anio, valor, fecha, creado_por, observaciones, cotizacion_dolar)
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING id
+        INSERT INTO automotores (expediente_id, numero_recuento, vehiculo, anio, valor, fecha, creado_por, observaciones, cotizacion_dolar, valor_moneda)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING id
     ''', (
         exp_id, num_recuento,
         data.get('vehiculo', '').strip().upper(),
@@ -1304,6 +1305,7 @@ def guardar_automotor(exp_id):
         usuario_actual,
         data.get('observaciones', '').strip(),
         parse_float(data.get('cotizacion_dolar')),
+        data.get('valor_moneda', 'ARS') or 'ARS',
     ))
 
     for file in request.files.getlist('archivos'):
@@ -1385,8 +1387,8 @@ def guardar_reconsideracion_automotor(auto_id):
     nuevo_auto_id = fetchscalar(conn, '''
         INSERT INTO automotores
             (expediente_id, numero_recuento, vehiculo, anio, valor, fecha,
-             creado_por, observaciones, editado_por, es_reconsideracion, cotizacion_dolar)
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, TRUE, %s) RETURNING id
+             creado_por, observaciones, editado_por, es_reconsideracion, cotizacion_dolar, valor_moneda)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, TRUE, %s, %s) RETURNING id
     ''', (
         exp_id, num_recuento,
         data.get('vehiculo', '').strip().upper(),
@@ -1397,6 +1399,7 @@ def guardar_reconsideracion_automotor(auto_id):
         data.get('observaciones', '').strip(),
         usuario_actual,
         parse_float(data.get('cotizacion_dolar')),
+        data.get('valor_moneda', 'ARS') or 'ARS',
     ))
 
     # Copiar archivos del automotor original
