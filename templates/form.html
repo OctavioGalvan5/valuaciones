@@ -254,15 +254,47 @@
                             </select>
                         </div>
                         <div class="form-group">
-                            <label>Monto $</label>
-                            <input type="number" name="monto" step="0.01" placeholder="0.00"
-                                value="{{ datos.monto if datos else '' }}" {% if readonly %}readonly{% endif %}>
+                            <label id="label-monto">
+                                Monto
+                                {% if not readonly %}
+                                <select name="monto_moneda" id="monto_moneda" onchange="actualizarEquivalentes()"
+                                        style="margin-left:6px; font-size:0.78rem; padding:2px 6px; border-radius:4px; border:1px solid #d1d5db; background:#f9fafb; font-weight:600; cursor:pointer;">
+                                    <option value="ARS" {% if not datos or not datos.monto_moneda or datos.monto_moneda == 'ARS' %}selected{% endif %}>$ Pesos</option>
+                                    <option value="USD" {% if datos and datos.monto_moneda == 'USD' %}selected{% endif %}>U$S Dólar</option>
+                                </select>
+                                {% else %}
+                                <span style="margin-left:6px; font-size:0.78rem; font-weight:600; color:#374151;">
+                                    {{ datos.monto_moneda if datos and datos.monto_moneda else 'ARS' }}
+                                </span>
+                                <input type="hidden" name="monto_moneda" value="{{ datos.monto_moneda if datos and datos.monto_moneda else 'ARS' }}">
+                                {% endif %}
+                            </label>
+                            <input type="number" name="monto" id="monto_input" step="0.01" placeholder="0.00"
+                                value="{{ datos.monto if datos else '' }}" {% if readonly %}readonly{% endif %}
+                                oninput="actualizarEquivalentes()">
+                            <div id="monto_equiv" style="font-size:0.78rem; color:#059669; margin-top:3px; font-weight:600;"></div>
                         </div>
                         <div class="form-group">
-                            <label class="label-propuesta">Propuesta U$S</label>
+                            <label id="label-propuesta" class="label-propuesta">
+                                Propuesta
+                                {% if not readonly %}
+                                <select name="propuesta_moneda" id="propuesta_moneda" onchange="actualizarEquivalentes()"
+                                        style="margin-left:6px; font-size:0.78rem; padding:2px 6px; border-radius:4px; border:1px solid #d1d5db; background:#f9fafb; font-weight:600; cursor:pointer;">
+                                    <option value="USD" {% if not datos or not datos.propuesta_moneda or datos.propuesta_moneda == 'USD' %}selected{% endif %}>U$S Dólar</option>
+                                    <option value="ARS" {% if datos and datos.propuesta_moneda == 'ARS' %}selected{% endif %}>$ Pesos</option>
+                                </select>
+                                {% else %}
+                                <span style="margin-left:6px; font-size:0.78rem; font-weight:600; color:#374151;">
+                                    {{ datos.propuesta_moneda if datos and datos.propuesta_moneda else 'USD' }}
+                                </span>
+                                <input type="hidden" name="propuesta_moneda" value="{{ datos.propuesta_moneda if datos and datos.propuesta_moneda else 'USD' }}">
+                                {% endif %}
+                            </label>
                             <input type="number" name="propuesta" id="propuesta_editable" step="0.01"
                                 placeholder="0.00" value="{{ datos.propuesta if datos else '' }}"
-                                class="propuesta-input" {% if readonly %}readonly{% endif %}>
+                                class="propuesta-input" {% if readonly %}readonly{% endif %}
+                                oninput="actualizarEquivalentes()">
+                            <div id="propuesta_equiv" style="font-size:0.78rem; color:#1e3a8a; margin-top:3px; font-weight:600;"></div>
                         </div>
                     </div>
 
@@ -547,6 +579,49 @@
             document.getElementById('emprendimiento').value = emprendimiento.toFixed(2);
         }
 
+        function actualizarEquivalentes() {
+            var cotizacion  = parseFloat(document.getElementById('valor_dolar') ? document.getElementById('valor_dolar').value : 0) || 0;
+            var propuestaEl = document.getElementById('propuesta_editable');
+            var monedaProp  = document.getElementById('propuesta_moneda');
+            var monedaMonto = document.getElementById('monto_moneda');
+            var montoEl     = document.getElementById('monto_input');
+            var propEquiv   = document.getElementById('propuesta_equiv');
+            var montoEquiv  = document.getElementById('monto_equiv');
+
+            if (!propuestaEl || !propEquiv) return;
+
+            var propVal = parseFloat(propuestaEl.value) || 0;
+            var mProp   = monedaProp ? monedaProp.value : 'USD';
+
+            if (cotizacion > 0 && propVal > 0) {
+                if (mProp === 'USD') {
+                    var enPesos = propVal * cotizacion;
+                    propEquiv.textContent = '≈ $ ' + enPesos.toLocaleString('es-AR', {maximumFractionDigits: 0});
+                } else {
+                    var enDolar = propVal / cotizacion;
+                    propEquiv.textContent = '≈ U$S ' + enDolar.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+                }
+            } else {
+                propEquiv.textContent = '';
+            }
+
+            if (!montoEl || !montoEquiv) return;
+            var montoVal = parseFloat(montoEl.value) || 0;
+            var mMonto   = monedaMonto ? monedaMonto.value : 'ARS';
+
+            if (cotizacion > 0 && montoVal > 0) {
+                if (mMonto === 'ARS') {
+                    var enDolarM = montoVal / cotizacion;
+                    montoEquiv.textContent = '≈ U$S ' + enDolarM.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+                } else {
+                    var enPesosM = montoVal * cotizacion;
+                    montoEquiv.textContent = '≈ $ ' + enPesosM.toLocaleString('es-AR', {maximumFractionDigits: 0});
+                }
+            } else {
+                montoEquiv.textContent = '';
+            }
+        }
+
         document.addEventListener('DOMContentLoaded', function () {
             var editandoEl    = document.getElementById('editando_id');
             var viendoEl      = document.getElementById('viendo_id');
@@ -566,6 +641,13 @@
                     el.disabled = true;
                 });
             }
+
+            // Mostrar equivalentes al cargar si hay datos guardados
+            actualizarEquivalentes();
+
+            // Recalcular equivalentes cuando cambia la cotización
+            var valorDolarEl = document.getElementById('valor_dolar');
+            if (valorDolarEl) valorDolarEl.addEventListener('input', actualizarEquivalentes);
         });
 
         // ---- Modal de alertas ----

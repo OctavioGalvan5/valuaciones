@@ -282,6 +282,13 @@ def init_db():
     execute(conn, 'ALTER TABLE catastros ADD COLUMN IF NOT EXISTS eliminado BOOLEAN DEFAULT FALSE')
     execute(conn, 'ALTER TABLE automotores ADD COLUMN IF NOT EXISTS eliminado BOOLEAN DEFAULT FALSE')
 
+    # Moneda de propuesta y monto en catastros
+    execute(conn, "ALTER TABLE catastros ADD COLUMN IF NOT EXISTS propuesta_moneda TEXT DEFAULT 'USD'")
+    execute(conn, "ALTER TABLE catastros ADD COLUMN IF NOT EXISTS monto_moneda TEXT DEFAULT 'ARS'")
+
+    # Cotización dólar en automotores
+    execute(conn, 'ALTER TABLE automotores ADD COLUMN IF NOT EXISTS cotizacion_dolar NUMERIC DEFAULT 0')
+
     # ---- Tabla usuarios ----
     execute(conn, '''
         CREATE TABLE IF NOT EXISTS usuarios (
@@ -435,6 +442,8 @@ def _calcular_catastro(data):
     total_usd_edif = sup_edif_m2 * usd_m2_edif
     total_usd      = total_usd_terreno + total_usd_edif
     propuesta      = parse_float(data.get('propuesta')) or total_usd * 1.10
+    propuesta_moneda = data.get('propuesta_moneda', 'USD') or 'USD'
+    monto_moneda     = data.get('monto_moneda', 'ARS') or 'ARS'
 
     gmaps_zona   = data.get('gmaps_zona', '').strip()
     gmaps_frente = data.get('gmaps_frente', '').strip()
@@ -468,7 +477,9 @@ def _calcular_catastro(data):
         valor_dolar=valor_dolar,
         total_usd_terreno=total_usd_terreno, total_usd_edif=total_usd_edif,
         total_usd=total_usd, propuesta=propuesta,
+        propuesta_moneda=propuesta_moneda,
         monto=parse_float(data.get('monto')),
+        monto_moneda=monto_moneda,
         denuncia=data.get('denuncia', '').strip(),
         gmaps_zona=gmaps_zona, gmaps_frente=gmaps_frente,
         terreno_total=terreno_total, fot=fot, fos=fos,
@@ -785,7 +796,7 @@ def guardar_catastro(exp_id):
             cerros_hect,     cerros_frente_lado,     cerros_antes_revision,     usd_hect_cerros,
             sup_edif_m2, edif_frente_lado, edif_antes_revision, usd_m2_edif,
             valor_dolar,
-            total_usd_terreno, total_usd_edif, total_usd, propuesta, monto,
+            total_usd_terreno, total_usd_edif, total_usd, propuesta, propuesta_moneda, monto, monto_moneda,
             denuncia, gmaps_zona, gmaps_frente,
             terreno_total, fot, fos, sup_edif_total, pisos_maximos,
             porcentaje_emprendimiento, costo_usd_m2_emprendimiento, emprendimiento,
@@ -799,7 +810,7 @@ def guardar_catastro(exp_id):
             %s, %s, %s, %s,
             %s, %s, %s, %s,
             %s,
-            %s, %s, %s, %s, %s,
+            %s, %s, %s, %s, %s, %s, %s,
             %s, %s, %s,
             %s, %s, %s, %s, %s,
             %s, %s, %s,
@@ -814,7 +825,7 @@ def guardar_catastro(exp_id):
         c['cerros_hect'],     c['cerros_frente_lado'],     c['cerros_antes_revision'],     c['usd_hect_cerros'],
         c['sup_edif_m2'], c['edif_frente_lado'], c['edif_antes_revision'], c['usd_m2_edif'],
         c['valor_dolar'],
-        c['total_usd_terreno'], c['total_usd_edif'], c['total_usd'], c['propuesta'], c['monto'],
+        c['total_usd_terreno'], c['total_usd_edif'], c['total_usd'], c['propuesta'], c['propuesta_moneda'], c['monto'], c['monto_moneda'],
         c['denuncia'], c['gmaps_zona'], c['gmaps_frente'],
         c['terreno_total'], c['fot'], c['fos'], c['sup_edif_total'], c['pisos_maximos'],
         c['porcentaje_emprendimiento'], c['costo_usd_m2_emprendimiento'], c['emprendimiento'],
@@ -966,7 +977,7 @@ def guardar_reconsideracion(cat_id):
             cerros_hect,     cerros_frente_lado,     cerros_antes_revision,     usd_hect_cerros,
             sup_edif_m2, edif_frente_lado, edif_antes_revision, usd_m2_edif,
             valor_dolar,
-            total_usd_terreno, total_usd_edif, total_usd, propuesta, monto,
+            total_usd_terreno, total_usd_edif, total_usd, propuesta, propuesta_moneda, monto, monto_moneda,
             denuncia, gmaps_zona, gmaps_frente,
             terreno_total, fot, fos, sup_edif_total, pisos_maximos,
             porcentaje_emprendimiento, costo_usd_m2_emprendimiento, emprendimiento,
@@ -980,7 +991,7 @@ def guardar_reconsideracion(cat_id):
             %s, %s, %s, %s,
             %s, %s, %s, %s,
             %s,
-            %s, %s, %s, %s, %s,
+            %s, %s, %s, %s, %s, %s, %s,
             %s, %s, %s,
             %s, %s, %s, %s, %s,
             %s, %s, %s,
@@ -995,7 +1006,7 @@ def guardar_reconsideracion(cat_id):
         c['cerros_hect'],     c['cerros_frente_lado'],     c['cerros_antes_revision'],     c['usd_hect_cerros'],
         c['sup_edif_m2'], c['edif_frente_lado'], c['edif_antes_revision'], c['usd_m2_edif'],
         c['valor_dolar'],
-        c['total_usd_terreno'], c['total_usd_edif'], c['total_usd'], c['propuesta'], c['monto'],
+        c['total_usd_terreno'], c['total_usd_edif'], c['total_usd'], c['propuesta'], c['propuesta_moneda'], c['monto'], c['monto_moneda'],
         c['denuncia'], c['gmaps_zona'], c['gmaps_frente'],
         c['terreno_total'], c['fot'], c['fos'], c['sup_edif_total'], c['pisos_maximos'],
         c['porcentaje_emprendimiento'], c['costo_usd_m2_emprendimiento'], c['emprendimiento'],
@@ -1282,8 +1293,8 @@ def guardar_automotor(exp_id):
 
     num_recuento = obtener_siguiente_recuento(conn, usuario_actual)
     auto_id = fetchscalar(conn, '''
-        INSERT INTO automotores (expediente_id, numero_recuento, vehiculo, anio, valor, fecha, creado_por, observaciones)
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s) RETURNING id
+        INSERT INTO automotores (expediente_id, numero_recuento, vehiculo, anio, valor, fecha, creado_por, observaciones, cotizacion_dolar)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING id
     ''', (
         exp_id, num_recuento,
         data.get('vehiculo', '').strip().upper(),
@@ -1292,6 +1303,7 @@ def guardar_automotor(exp_id):
         data.get('fecha', ''),
         usuario_actual,
         data.get('observaciones', '').strip(),
+        parse_float(data.get('cotizacion_dolar')),
     ))
 
     for file in request.files.getlist('archivos'):
@@ -1373,8 +1385,8 @@ def guardar_reconsideracion_automotor(auto_id):
     nuevo_auto_id = fetchscalar(conn, '''
         INSERT INTO automotores
             (expediente_id, numero_recuento, vehiculo, anio, valor, fecha,
-             creado_por, observaciones, editado_por, es_reconsideracion)
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, TRUE) RETURNING id
+             creado_por, observaciones, editado_por, es_reconsideracion, cotizacion_dolar)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, TRUE, %s) RETURNING id
     ''', (
         exp_id, num_recuento,
         data.get('vehiculo', '').strip().upper(),
@@ -1384,6 +1396,7 @@ def guardar_reconsideracion_automotor(auto_id):
         usuario_actual,
         data.get('observaciones', '').strip(),
         usuario_actual,
+        parse_float(data.get('cotizacion_dolar')),
     ))
 
     # Copiar archivos del automotor original

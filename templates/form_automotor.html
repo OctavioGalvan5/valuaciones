@@ -126,10 +126,22 @@
                         <input type="text" value="{{ viendo.anio or '—' }}" readonly>
                     </div>
                     <div class="form-group">
-                        <label>Valor</label>
+                        <label>Valor en pesos</label>
                         <input type="text"
                                value="$ {{ '{:,.0f}'.format(viendo.valor).replace(',', '.') if viendo.valor else '—' }}"
                                readonly style="font-weight: 700; color: #1e3a8a;">
+                    </div>
+                    <div class="form-group">
+                        <label>Cotización dólar</label>
+                        <input type="text"
+                               value="{{ '$ {:,.2f}'.format(viendo.cotizacion_dolar).replace(',', '.') if viendo.cotizacion_dolar else '—' }}"
+                               readonly>
+                    </div>
+                    <div class="form-group">
+                        <label>Valor en dólares</label>
+                        <input type="text"
+                               value="{% if viendo.valor and viendo.cotizacion_dolar and viendo.cotizacion_dolar > 0 %}U$S {{ '{:,.2f}'.format(viendo.valor / viendo.cotizacion_dolar).replace(',', '.') }}{% else %}—{% endif %}"
+                               readonly style="font-weight: 700; color: #059669;">
                     </div>
                     <div class="form-group">
                         <label>Fecha</label>
@@ -182,8 +194,15 @@
                             <input type="text" name="valor" id="valor" required
                                    value="{{ reconsiderando.valor if reconsiderando else '' }}"
                                    placeholder="Ej: 25495100"
-                                   oninput="formatearValor(this)">
+                                   oninput="formatearValor(this); calcEquiv();">
                             <small style="color:#6b7280; font-size:0.78rem;">Solo números, sin puntos ni comas</small>
+                        </div>
+                        <div class="form-group">
+                            <label>Cotización dólar</label>
+                            <input type="number" name="cotizacion_dolar" id="cotizacion_dolar" step="0.01" placeholder="Ej: 1200"
+                                   value="{{ reconsiderando.cotizacion_dolar if reconsiderando and reconsiderando.cotizacion_dolar else '' }}"
+                                   oninput="calcEquiv()">
+                            <div id="valor_equiv" style="font-size:0.78rem; color:#1e3a8a; margin-top:3px; font-weight:600;"></div>
                         </div>
                         <div class="form-group">
                             <label>Fecha <span style="color:#ef4444;">*</span></label>
@@ -299,6 +318,21 @@
     <script>
         function formatearValor(input) {
             input.value = input.value.replace(/[^0-9]/g, '');
+        }
+
+        function calcEquiv() {
+            var valorEl = document.getElementById('valor');
+            var cotizEl = document.getElementById('cotizacion_dolar');
+            var equivEl = document.getElementById('valor_equiv');
+            if (!valorEl || !cotizEl || !equivEl) return;
+            var valor   = parseFloat(valorEl.value) || 0;
+            var cotiz   = parseFloat(cotizEl.value) || 0;
+            if (valor > 0 && cotiz > 0) {
+                var enUsd = valor / cotiz;
+                equivEl.textContent = '≈ U$S ' + enUsd.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+            } else {
+                equivEl.textContent = '';
+            }
         }
     </script>
 
