@@ -664,7 +664,7 @@ def verificar_catastro():
         registros = fetchall(conn, sql, params)
         for reg in registros:
             dist = haversine(lat, lon, reg['latitud'], reg['longitud'])
-            if dist < 1.0:
+            if dist < 0.5:
                 dist_metros = round(dist * 1000)
                 alertas.append({
                     'tipo': 'proximidad',
