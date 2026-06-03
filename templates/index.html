@@ -26,6 +26,7 @@
             <div class="stat-badge">
                 <span class="header-user-icon">&#9679;</span> {{ usuario }}
             </div>
+            <a href="{{ url_for('reporte') }}" class="btn-header btn-header-teal" style="margin-right:8px;">Reporte</a>
             <a href="{{ url_for('reconsideraciones') }}" class="btn-header btn-header-purple" style="margin-right:8px;">Reconsideraciones</a>
             <a href="{{ url_for('configurar_vr') }}" class="btn-header btn-header-amber" style="margin-right:8px;">Configurar VR</a>
             <a href="{{ url_for('logout') }}" class="btn-logout">Cerrar sesión</a>
@@ -74,21 +75,22 @@
                                 {% endfor %}
                             </select>
                         </div>
-                        <div class="filtro-group">
-                            <label>Estado</label>
-                            <select name="estado" class="form-select">
-                                <option value="activas"      {% if estado == 'activas'      %}selected{% endif %}>Activas</option>
-                                <option value="desactivadas" {% if estado == 'desactivadas' %}selected{% endif %}>Desactivadas</option>
-                                <option value="todas"        {% if estado == 'todas'        %}selected{% endif %}>Todas</option>
-                            </select>
-                        </div>
                         <div class="filtro-actions">
                             <button type="submit" class="btn btn-primary btn-sm">Filtrar</button>
-                            {% if q or desde or hasta or filtro_usuario or estado != 'activas' %}
+                            {% if q or desde or hasta or filtro_usuario %}
                             <a href="{{ url_for('index') }}" class="btn btn-sm btn-edit">Limpiar</a>
                             {% endif %}
-                            <a href="{{ url_for('exportar_excel') }}?{{ ('q=' + q + '&') if q else '' }}{{ ('desde=' + desde + '&') if desde else '' }}{{ ('hasta=' + hasta + '&') if hasta else '' }}{{ ('usuario=' + filtro_usuario + '&') if filtro_usuario else '' }}estado={{ estado }}"
+                            <a href="{{ url_for('exportar_excel') }}?{{ ('q=' + q + '&') if q else '' }}{{ ('desde=' + desde + '&') if desde else '' }}{{ ('hasta=' + hasta + '&') if hasta else '' }}{{ ('usuario=' + filtro_usuario) if filtro_usuario else '' }}"
                                 class="btn btn-sm btn-excel">Exportar Excel</a>
+                            {% if is_admin %}
+                            {% if ver_eliminados %}
+                            <a href="{{ url_for('index') }}?{{ ('q=' + q + '&') if q else '' }}{{ ('desde=' + desde + '&') if desde else '' }}{{ ('hasta=' + hasta + '&') if hasta else '' }}{{ ('usuario=' + filtro_usuario) if filtro_usuario else '' }}"
+                               class="btn btn-sm" style="background:#fef2f2;color:#b91c1c;border-color:#fca5a5;">Ocultar eliminados</a>
+                            {% else %}
+                            <a href="{{ url_for('index') }}?ver_eliminados=1&{{ ('q=' + q + '&') if q else '' }}{{ ('desde=' + desde + '&') if desde else '' }}{{ ('hasta=' + hasta + '&') if hasta else '' }}{{ ('usuario=' + filtro_usuario) if filtro_usuario else '' }}"
+                               class="btn btn-sm" style="background:#fef2f2;color:#b91c1c;border-color:#fca5a5;">Ver eliminados</a>
+                            {% endif %}
+                            {% endif %}
                         </div>
                     </div>
                 </form>
@@ -116,7 +118,7 @@
                         </thead>
                         <tbody>
                             {% for e in expedientes %}
-                            <tr {% if not e.activa %}class="row-desactivada"{% endif %}>
+                            <tr {% if not e.activa %}style="opacity:0.55;"{% endif %}>
                                 <td class="number" style="font-size:0.82rem; color:#6b7280;">
                                     {{ e.vr_numeros or '—' }}
                                 </td>
@@ -124,7 +126,9 @@
                                     <a href="{{ url_for('expediente_detail', exp_id=e.id) }}" class="link-expediente">
                                         {{ e.expediente or '—' }}
                                     </a>
-                                    {% if not e.activa %} <span class="badge-desactivada">Desactivada</span>{% endif %}
+                                    {% if not e.activa %}
+                                    <span style="background:#fee2e2;color:#b91c1c;padding:2px 6px;border-radius:4px;font-size:0.72rem;font-weight:700;margin-left:6px;border:1px solid #fca5a5;">Eliminado</span>
+                                    {% endif %}
                                 </td>
                                 <td>{{ e.caratula or '—' }}</td>
                                 <td class="number">{{ e.num_catastros }}</td>
@@ -133,17 +137,10 @@
                                 <td>
                                     <div class="actions-cell">
                                         <a href="{{ url_for('expediente_detail', exp_id=e.id) }}" class="btn btn-sm btn-success">Ver</a>
-                                        {% if e.activa %}
                                         <form method="POST" action="{{ url_for('desactivar', exp_id=e.id) }}" style="display:inline"
-                                            onsubmit="return confirm('¿Desactivar expediente {{ e.expediente }}?')">
-                                            <button type="submit" class="btn btn-sm btn-deactivate">Desactivar</button>
+                                            onsubmit="return confirm('¿Eliminar expediente {{ e.expediente }}? Esta acción no se puede deshacer.')">
+                                            <button type="submit" class="btn btn-sm btn-deactivate">Eliminar</button>
                                         </form>
-                                        {% else %}
-                                        <form method="POST" action="{{ url_for('reactivar', exp_id=e.id) }}" style="display:inline"
-                                            onsubmit="return confirm('¿Reactivar expediente {{ e.expediente }}?')">
-                                            <button type="submit" class="btn btn-sm btn-success">Reactivar</button>
-                                        </form>
-                                        {% endif %}
                                     </div>
                                 </td>
                             </tr>

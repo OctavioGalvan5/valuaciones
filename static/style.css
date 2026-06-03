@@ -913,6 +913,20 @@ tbody td.propuesta {
     }
 }
 
+.btn-header-teal {
+    background: rgba(255, 255, 255, 0.12);
+    border-color: rgba(255, 255, 255, 0.25);
+    color: #e0f0ff !important;
+}
+
+@media (hover: hover) and (pointer: fine) {
+    .btn-header-teal:hover {
+        background: rgba(255, 255, 255, 0.22);
+        border-color: rgba(255, 255, 255, 0.5);
+        color: #fff !important;
+    }
+}
+
 .btn-header-amber {
     background: rgba(245, 158, 11, 0.15);
     border-color: rgba(245, 158, 11, 0.35);
@@ -1031,6 +1045,17 @@ tbody td.propuesta {
 
 @media (hover: hover) and (pointer: fine) {
     .btn-excel:hover { background: #dcfce7; border-color: #4ade80; }
+}
+
+/* ---- Botón PDF ---- */
+.btn-pdf {
+    background: #fef2f2;
+    color: #b91c1c;
+    border-color: #fca5a5;
+}
+
+@media (hover: hover) and (pointer: fine) {
+    .btn-pdf:hover { background: #fee2e2; border-color: #f87171; }
 }
 
 /* ---- Archivos adjuntos ---- */

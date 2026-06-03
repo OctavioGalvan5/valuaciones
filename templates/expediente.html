@@ -47,12 +47,8 @@
                     <a href="{{ url_for('nuevo_catastro', exp_id=exp.id) }}" class="btn btn-primary btn-sm">+ Agregar Catastro</a>
                     <a href="{{ url_for('nuevo_automotor', exp_id=exp.id) }}" class="btn btn-primary btn-sm" style="background:#059669;">+ Agregar Automotor</a>
                     <form method="POST" action="{{ url_for('desactivar', exp_id=exp.id) }}" style="display:inline"
-                        onsubmit="return confirm('¿Desactivar este expediente y todos sus catastros?')">
-                        <button type="submit" class="btn btn-sm btn-deactivate">Desactivar</button>
-                    </form>
-                    {% else %}
-                    <form method="POST" action="{{ url_for('reactivar', exp_id=exp.id) }}" style="display:inline">
-                        <button type="submit" class="btn btn-sm btn-success">Reactivar</button>
+                        onsubmit="return confirm('¿Eliminar este expediente? Quedará oculto para todos los usuarios.')">
+                        <button type="submit" class="btn btn-sm btn-deactivate">Eliminar</button>
                     </form>
                     {% endif %}
                 </div>
@@ -71,16 +67,7 @@
                         <label>Creado por</label>
                         <input type="text" value="{{ exp.creado_por or '—' }}" readonly>
                     </div>
-                    <div class="form-group">
-                        <label>Estado</label>
-                        <input type="text" value="{% if exp.activa %}Activo{% else %}Desactivado{% endif %}" readonly>
-                    </div>
                 </div>
-                {% if not exp.activa and exp.eliminado_por %}
-                <div style="margin-top:10px; font-size:0.85rem; color:#6b7280;">
-                    Desactivado por {{ exp.eliminado_por }} el {{ exp.fecha_eliminacion }}
-                </div>
-                {% endif %}
             </div>
         </div>
 
@@ -108,9 +95,17 @@
                         </thead>
                         <tbody>
                             {% for a in automotores %}
-                            <tr>
-                                <td class="number">{{ a.numero_recuento }}</td>
-                                <td style="font-weight:600;">{{ a.vehiculo or '—' }}</td>
+                            <tr {% if a.eliminado %}style="opacity:0.5;"{% endif %}>
+                                <td class="number">{{ a.numero_recuento }}{% if a.editado_por %} ({{ a.editado_por }}){% endif %}</td>
+                                <td style="font-weight:600;">
+                                    {{ a.vehiculo or '—' }}
+                                    {% if a.es_reconsideracion %}
+                                    <span style="background:#FEF3C7; color:#D97706; padding:2px 6px; border-radius:4px; font-size:0.75rem; font-weight:600; margin-left:8px; border:1px solid #FDE68A;">Reconsideración</span>
+                                    {% endif %}
+                                    {% if a.eliminado %}
+                                    <span style="background:#fee2e2;color:#b91c1c;padding:2px 6px;border-radius:4px;font-size:0.72rem;font-weight:700;margin-left:6px;border:1px solid #fca5a5;">Eliminado</span>
+                                    {% endif %}
+                                </td>
                                 <td class="number">{{ a.anio or '—' }}</td>
                                 <td class="number propuesta">
                                     $ {{ '{:,.0f}'.format(a.valor).replace(',', '.') if a.valor else '—' }}
@@ -120,6 +115,7 @@
                                     <div class="actions-cell">
                                         <a href="{{ url_for('ver_automotor', auto_id=a.id) }}" class="btn btn-sm btn-success">Ver</a>
                                         {% if exp.activa %}
+                                        <a href="{{ url_for('reconsiderar_automotor', auto_id=a.id) }}" class="btn btn-sm btn-edit">Reconsiderar</a>
                                         <form method="POST" action="{{ url_for('eliminar_automotor', auto_id=a.id) }}" style="display:inline"
                                               onsubmit="return confirm('¿Eliminar automotor {{ a.vehiculo }}?')">
                                             <button type="submit" class="btn btn-sm btn-deactivate">Eliminar</button>
@@ -168,25 +164,32 @@
                         </thead>
                         <tbody>
                             {% for c in catastros %}
-                            <tr>
+                            <tr {% if c.eliminado %}style="opacity:0.5;"{% endif %}>
                                 <td class="number">{{ c.numero_vr or c.id }}{% if c.editado_por %} ({{ c.editado_por }}){% endif %}</td>
                                 <td>
                                     {{ c.catastro or '—' }}
                                     {% if c.es_reconsideracion %}
                                     <span style="background-color: #fef3c7; color: #d97706; padding: 2px 6px; border-radius: 4px; font-size: 0.75rem; font-weight: 600; margin-left: 8px; border: 1px solid #fde68a;">Reconsideración</span>
                                     {% endif %}
+                                    {% if c.eliminado %}
+                                    <span style="background:#fee2e2;color:#b91c1c;padding:2px 6px;border-radius:4px;font-size:0.72rem;font-weight:700;margin-left:6px;border:1px solid #fca5a5;">Eliminado</span>
+                                    {% endif %}
                                 </td>
                                 <td>{{ c.tipo_catastro or '—' }}</td>
                                 <td>{{ c.direccion or '—' }}</td>
                                 <td>{{ c.fecha.split('-')|reverse|join('/') if c.fecha else '—' }}</td>
                                 <td class="number propuesta">
-                                    {{ "{:,.2f}".format(c.propuesta) if c.propuesta else '—' }}
+                                    {{ "{:,.0f}".format(c.propuesta).replace(',', '.') if c.propuesta else '—' }}
                                 </td>
                                 <td>
                                     <div class="actions-cell">
                                         <a href="{{ url_for('ver', cat_id=c.id) }}" class="btn btn-sm btn-success">Ver</a>
                                         {% if exp.activa %}
                                         <a href="{{ url_for('reconsiderar', cat_id=c.id) }}" class="btn btn-sm btn-edit">Reconsiderar</a>
+                                        <form method="POST" action="{{ url_for('eliminar_catastro', cat_id=c.id) }}" style="display:inline"
+                                              onsubmit="return confirm('¿Eliminar catastro {{ c.catastro }}? Quedará oculto en toda la aplicación.')">
+                                            <button type="submit" class="btn btn-sm btn-deactivate">Eliminar</button>
+                                        </form>
                                         {% endif %}
                                     </div>
                                 </td>

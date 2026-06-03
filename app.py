@@ -35,10 +35,9 @@ minio_client = Minio(
 )
 
 USUARIOS_INICIALES = [
-    ('admin',   'Sarmiento302'),
-    ('Mariano', 'Sarmiento302'),
-    ('Luis',    'Sarmiento302'),
-    ('Octavio', 'Sarmiento302'),
+    ('Mariano', 'Sarmiento302', 'usuario'),
+    ('Luis',    'Sarmiento302', 'usuario'),
+    ('Octavio', 'Sarmiento302', 'usuario'),
 ]
 
 ALLOWED_EXTENSIONS = {'.pdf', '.doc', '.docx', '.xls', '.xlsx', '.jpg', '.jpeg', '.png'}
@@ -262,6 +261,14 @@ def init_db():
     # automotor_id en archivos
     execute(conn, 'ALTER TABLE archivos ADD COLUMN IF NOT EXISTS automotor_id INTEGER')
 
+    # Columnas de reconsideración en automotores
+    execute(conn, 'ALTER TABLE automotores ADD COLUMN IF NOT EXISTS es_reconsideracion BOOLEAN DEFAULT FALSE')
+    execute(conn, 'ALTER TABLE automotores ADD COLUMN IF NOT EXISTS editado_por TEXT')
+
+    # Columnas de eliminación lógica
+    execute(conn, 'ALTER TABLE catastros ADD COLUMN IF NOT EXISTS eliminado BOOLEAN DEFAULT FALSE')
+    execute(conn, 'ALTER TABLE automotores ADD COLUMN IF NOT EXISTS eliminado BOOLEAN DEFAULT FALSE')
+
     # ---- Tabla usuarios ----
     execute(conn, '''
         CREATE TABLE IF NOT EXISTS usuarios (
@@ -270,11 +277,24 @@ def init_db():
             password_hash TEXT NOT NULL
         )
     ''')
+    execute(conn, "ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS rol TEXT DEFAULT 'usuario'")
 
-    for username, password in USUARIOS_INICIALES:
+    # Admin: siempre sincronizar contraseña y rol
+    admin_hash = generate_password_hash('admin123')
+    if fetchone(conn, 'SELECT id FROM usuarios WHERE username = %s', ('admin',)):
+        execute(conn, "UPDATE usuarios SET password_hash = %s, rol = 'admin' WHERE username = %s",
+                (admin_hash, 'admin'))
+    else:
+        execute(conn, "INSERT INTO usuarios (username, password_hash, rol) VALUES ('admin', %s, 'admin')",
+                (admin_hash,))
+
+    for username, password, rol in USUARIOS_INICIALES:
         if not fetchone(conn, 'SELECT id FROM usuarios WHERE username = %s', (username,)):
-            execute(conn, 'INSERT INTO usuarios (username, password_hash) VALUES (%s, %s)',
-                    (username, generate_password_hash(password)))
+            execute(conn, 'INSERT INTO usuarios (username, password_hash, rol) VALUES (%s, %s, %s)',
+                    (username, generate_password_hash(password), rol))
+        else:
+            execute(conn, "UPDATE usuarios SET rol = %s WHERE username = %s AND (rol IS NULL OR rol = '')",
+                    (rol, username))
 
     conn.commit()
     conn.close()
@@ -301,6 +321,20 @@ def filesize_filter(size):
     elif size < 1024 * 1024:
         return f'{size / 1024:.1f} KB'
     return f'{size / 1024 / 1024:.1f} MB'
+
+
+@app.template_filter('usd')
+def usd_filter(value):
+    if not value:
+        return '0'
+    return f'{float(value):,.0f}'.replace(',', '.')
+
+
+@app.template_filter('pesos')
+def pesos_filter(value):
+    if not value:
+        return '0'
+    return f'{int(value):,}'.replace(',', '.')
 
 
 # ---- Helpers ----
@@ -449,6 +483,7 @@ def login():
         conn.close()
         if user and check_password_hash(user['password_hash'], password):
             session['usuario'] = username
+            session['rol']     = user.get('rol') or 'usuario'
             return redirect(url_for('index'))
         error = 'Usuario o contraseña incorrectos.'
     return render_template('login.html', error=error)
@@ -457,27 +492,26 @@ def login():
 @app.route('/logout')
 def logout():
     session.pop('usuario', None)
+    session.pop('rol', None)
     return redirect(url_for('login'))
+
+
+@app.context_processor
+def inject_globals():
+    return {'is_admin': session.get('rol') == 'admin'}
 
 
 @app.route('/')
 @login_required
 def index():
-    q              = request.args.get('q', '').strip()
-    desde          = request.args.get('desde', '').strip()
-    hasta          = request.args.get('hasta', '').strip()
-    filtro_usuario = request.args.get('usuario', '').strip()
-    estado         = request.args.get('estado', 'activas').strip()
-    page           = max(1, int(request.args.get('page', 1) or 1))
+    q               = request.args.get('q', '').strip()
+    desde           = request.args.get('desde', '').strip()
+    hasta           = request.args.get('hasta', '').strip()
+    filtro_usuario  = request.args.get('usuario', '').strip()
+    ver_eliminados  = request.args.get('ver_eliminados', '') == '1' and session.get('rol') == 'admin'
+    page            = max(1, int(request.args.get('page', 1) or 1))
 
-    conditions = []
-    if estado == 'desactivadas':
-        conditions.append('e.activa = 0')
-    elif estado == 'todas':
-        pass
-    else:
-        conditions.append('e.activa = 1')
-
+    conditions = [] if ver_eliminados else ['e.activa = 1']
     params = []
     if q:
         conditions.append('''(
@@ -495,12 +529,12 @@ def index():
         conditions.append('e.creado_por = %s')
         params.append(filtro_usuario)
 
-    where = ' AND '.join(conditions) if conditions else '1=1'
+    where = ' AND '.join(conditions)
 
-    # Cuando hay filtros sobre catastros, agrupamos por expediente y filtramos
-    # los que tienen al menos 1 catastro que cumple
     if q or desde or hasta:
         join_type = 'INNER JOIN'
+        conditions.append('(c.eliminado IS NOT TRUE)')
+        where = ' AND '.join(conditions)
     else:
         join_type = 'LEFT JOIN'
 
@@ -515,17 +549,17 @@ def index():
     total = fetchscalar(conn, count_sql, params)
 
     list_sql = f'''
-        SELECT e.id, e.expediente, e.caratula, e.creado_por, e.activa,
-               e.fecha_registro,
-               COUNT(CASE WHEN c.es_reconsideracion = FALSE THEN 1 END) AS num_catastros,
-               (SELECT COUNT(*) FROM automotores WHERE expediente_id = e.id) AS num_automotores,
+        SELECT e.id, e.expediente, e.caratula, e.creado_por,
+               e.fecha_registro, e.activa,
+               COUNT(CASE WHEN c.es_reconsideracion = FALSE AND (c.eliminado IS NOT TRUE) THEN 1 END) AS num_catastros,
+               (SELECT COUNT(*) FROM automotores WHERE expediente_id = e.id AND (eliminado IS NOT TRUE)) AS num_automotores,
                MIN(c.fecha) AS primera_fecha,
                MAX(c.fecha) AS ultima_fecha,
-               STRING_AGG(CAST(c.numero_vr AS TEXT) || COALESCE(' (' || c.editado_por || ')', ''), ', ' ORDER BY c.id) AS vr_numeros
+               STRING_AGG(CAST(c.numero_vr AS TEXT), ', ' ORDER BY c.id) AS vr_numeros
         FROM expedientes e
         {join_type} catastros c ON c.expediente_id = e.id
         WHERE {where}
-        GROUP BY e.id, e.expediente, e.caratula, e.creado_por, e.activa, e.fecha_registro
+        GROUP BY e.id, e.expediente, e.caratula, e.creado_por, e.fecha_registro, e.activa
         ORDER BY e.id DESC
         LIMIT %s OFFSET %s
     '''
@@ -540,7 +574,7 @@ def index():
                            usuario=session['usuario'],
                            q=q, desde=desde, hasta=hasta,
                            filtro_usuario=filtro_usuario,
-                           estado=estado,
+                           ver_eliminados=ver_eliminados,
                            page=page, total_pages=total_pages, total=total,
                            usuarios_lista=[u['username'] for u in usuarios_db])
 
@@ -553,10 +587,12 @@ def expediente_detail(exp_id):
     if not exp:
         conn.close()
         return redirect(url_for('index'))
+    es_admin = session.get('rol') == 'admin'
+    filtro_eliminado = '' if es_admin else 'AND (eliminado IS NOT TRUE)'
     catastros = fetchall(conn,
-        'SELECT * FROM catastros WHERE expediente_id = %s ORDER BY id ASC', (exp_id,))
+        f'SELECT * FROM catastros WHERE expediente_id = %s {filtro_eliminado} ORDER BY id ASC', (exp_id,))
     automotores_list = fetchall(conn,
-        'SELECT * FROM automotores WHERE expediente_id = %s ORDER BY id ASC', (exp_id,))
+        f'SELECT * FROM automotores WHERE expediente_id = %s {filtro_eliminado} ORDER BY id ASC', (exp_id,))
     conn.close()
     return render_template('expediente.html',
                            exp=exp,
@@ -637,7 +673,7 @@ def reconsideraciones():
     hasta          = request.args.get('hasta', '').strip()
     filtro_usuario = request.args.get('usuario', '').strip()
 
-    conditions = ['c.es_reconsideracion = TRUE']
+    conditions = ['c.es_reconsideracion = TRUE', '(c.eliminado IS NOT TRUE)']
     params = []
     if desde:
         conditions.append('c.fecha >= %s')
@@ -818,6 +854,20 @@ def reactivar(exp_id):
     conn.commit()
     conn.close()
     return redirect(request.referrer or url_for('index'))
+
+
+@app.route('/eliminar_catastro/<int:cat_id>', methods=['POST'])
+@login_required
+def eliminar_catastro(cat_id):
+    conn = get_db()
+    cat = fetchone(conn, 'SELECT expediente_id FROM catastros WHERE id = %s', (cat_id,))
+    if not cat:
+        conn.close()
+        return redirect(url_for('index'))
+    execute(conn, 'UPDATE catastros SET eliminado = TRUE WHERE id = %s', (cat_id,))
+    conn.commit()
+    conn.close()
+    return redirect(url_for('expediente_detail', exp_id=cat['expediente_id']))
 
 
 @app.route('/ver/<int:cat_id>')
@@ -1073,7 +1123,7 @@ def exportar_excel():
     hasta          = request.args.get('hasta', '').strip()
     filtro_usuario = request.args.get('usuario', '').strip()
 
-    conditions = ['e.activa = 1']
+    conditions = ['e.activa = 1', '(c.eliminado IS NOT TRUE)']
     params = []
     if q:
         conditions.append('(c.catastro ILIKE %s OR e.expediente ILIKE %s OR e.caratula ILIKE %s OR c.direccion ILIKE %s OR c.denuncia ILIKE %s)')
@@ -1274,6 +1324,88 @@ def ver_automotor(auto_id):
                            usuario=session['usuario'])
 
 
+@app.route('/reconsiderar_automotor/<int:auto_id>')
+@login_required
+def reconsiderar_automotor(auto_id):
+    conn = get_db()
+    automotor = fetchone(conn, 'SELECT * FROM automotores WHERE id = %s', (auto_id,))
+    if not automotor:
+        conn.close()
+        return redirect(url_for('index'))
+    exp = fetchone(conn, 'SELECT * FROM expedientes WHERE id = %s', (automotor['expediente_id'],))
+    archivos = fetchall(conn, 'SELECT * FROM archivos WHERE automotor_id = %s ORDER BY fecha_subida DESC', (auto_id,))
+    conn.close()
+    return render_template('form_automotor.html',
+                           reconsiderando=automotor,
+                           expediente_obj=exp,
+                           archivos=archivos,
+                           today=datetime.now().strftime('%Y-%m-%d'),
+                           usuario=session['usuario'])
+
+
+@app.route('/guardar_reconsideracion_automotor/<int:auto_id>', methods=['POST'])
+@login_required
+def guardar_reconsideracion_automotor(auto_id):
+    usuario_actual = session['usuario']
+    data = request.form
+
+    conn = get_db()
+    auto_viejo = fetchone(conn, 'SELECT expediente_id FROM automotores WHERE id = %s', (auto_id,))
+    if not auto_viejo:
+        conn.close()
+        return redirect(url_for('index'))
+    exp_id = auto_viejo['expediente_id']
+
+    num_recuento = obtener_siguiente_recuento(conn, usuario_actual)
+    nuevo_auto_id = fetchscalar(conn, '''
+        INSERT INTO automotores
+            (expediente_id, numero_recuento, vehiculo, anio, valor, fecha,
+             creado_por, observaciones, editado_por, es_reconsideracion)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, TRUE) RETURNING id
+    ''', (
+        exp_id, num_recuento,
+        data.get('vehiculo', '').strip().upper(),
+        parse_int(data.get('anio')),
+        parse_pesos(data.get('valor')),
+        data.get('fecha', ''),
+        usuario_actual,
+        data.get('observaciones', '').strip(),
+        usuario_actual,
+    ))
+
+    # Copiar archivos del automotor original
+    for arch in fetchall(conn, 'SELECT * FROM archivos WHERE automotor_id = %s', (auto_id,)):
+        execute(conn, '''
+            INSERT INTO archivos (automotor_id, nombre_original, objeto_minio, tipo, tamanio, subido_por)
+            VALUES (%s, %s, %s, %s, %s, %s)
+        ''', (nuevo_auto_id, arch['nombre_original'], arch['objeto_minio'],
+              arch['tipo'], arch['tamanio'], arch['subido_por']))
+
+    # Archivos nuevos subidos en la reconsideración
+    for file in request.files.getlist('archivos'):
+        if not file or not file.filename:
+            continue
+        ext = os.path.splitext(file.filename)[1].lower()
+        if ext not in ALLOWED_EXTENSIONS:
+            continue
+        objeto_minio = f'auto_{nuevo_auto_id}/{uuid.uuid4().hex}{ext}'
+        file_data = file.read()
+        tamanio = len(file_data)
+        try:
+            minio_client.put_object(MINIO_BUCKET, objeto_minio, BytesIO(file_data), tamanio,
+                                    content_type=file.content_type or 'application/octet-stream')
+            execute(conn, '''
+                INSERT INTO archivos (automotor_id, nombre_original, objeto_minio, tipo, tamanio, subido_por)
+                VALUES (%s, %s, %s, %s, %s, %s)
+            ''', (nuevo_auto_id, file.filename, objeto_minio, ext, tamanio, usuario_actual))
+        except S3Error as e:
+            print(f'[MinIO] Error al subir archivo: {e}')
+
+    conn.commit()
+    conn.close()
+    return redirect(url_for('expediente_detail', exp_id=exp_id))
+
+
 @app.route('/automotor/<int:auto_id>/eliminar', methods=['POST'])
 @login_required
 def eliminar_automotor(auto_id):
@@ -1283,14 +1415,7 @@ def eliminar_automotor(auto_id):
         conn.close()
         return redirect(url_for('index'))
     exp_id = automotor['expediente_id']
-    archivos = fetchall(conn, 'SELECT * FROM archivos WHERE automotor_id = %s', (auto_id,))
-    for arch in archivos:
-        try:
-            minio_client.remove_object(MINIO_BUCKET, arch['objeto_minio'])
-        except S3Error:
-            pass
-    execute(conn, 'DELETE FROM archivos WHERE automotor_id = %s', (auto_id,))
-    execute(conn, 'DELETE FROM automotores WHERE id = %s', (auto_id,))
+    execute(conn, 'UPDATE automotores SET eliminado = TRUE WHERE id = %s', (auto_id,))
     conn.commit()
     conn.close()
     return redirect(url_for('expediente_detail', exp_id=exp_id))
@@ -1397,6 +1522,425 @@ def configurar_vr():
                            proximo_actual=proximo_actual,
                            proximo_recuento=proximo_recuento,
                            usuario=usuario_actual)
+
+
+def _query_reporte(conn, desde, hasta, exp_q, usuario):
+    cat_cond, cat_p = [], []
+    aut_cond, aut_p = [], []
+
+    if desde:
+        cat_cond.append('c.fecha_registro::date >= %s'); cat_p.append(desde)
+        aut_cond.append('a.fecha_registro::date >= %s'); aut_p.append(desde)
+    if hasta:
+        cat_cond.append('c.fecha_registro::date <= %s'); cat_p.append(hasta)
+        aut_cond.append('a.fecha_registro::date <= %s'); aut_p.append(hasta)
+    if exp_q:
+        cat_cond.append('e.expediente ILIKE %s'); cat_p.append(f'%{exp_q}%')
+        aut_cond.append('e.expediente ILIKE %s'); aut_p.append(f'%{exp_q}%')
+    if usuario:
+        cat_cond.append('e.creado_por = %s'); cat_p.append(usuario)
+        aut_cond.append('a.creado_por = %s'); aut_p.append(usuario)
+
+    cat_cond += ['e.activa = 1', '(c.eliminado IS NOT TRUE)']
+    aut_cond += ['e.activa = 1', '(a.eliminado IS NOT TRUE)']
+    cat_where = ' AND '.join(cat_cond)
+    aut_where = ' AND '.join(aut_cond)
+
+    catastros = fetchall(conn, f'''
+        SELECT c.id, c.numero_vr, c.catastro, c.tipo_catastro, c.direccion,
+               c.total_usd, c.propuesta, c.monto, c.fecha, c.fecha_registro,
+               c.es_reconsideracion, c.editado_por,
+               e.id AS exp_id, e.expediente, e.caratula, e.creado_por AS exp_creado_por
+        FROM catastros c
+        JOIN expedientes e ON e.id = c.expediente_id
+        WHERE {cat_where}
+        ORDER BY e.id DESC, c.id ASC
+    ''', cat_p)
+
+    automotores = fetchall(conn, f'''
+        SELECT a.id, a.numero_recuento, a.vehiculo, a.anio, a.valor,
+               a.fecha, a.fecha_registro, a.creado_por, a.observaciones,
+               a.expediente_id,
+               e.expediente, e.caratula, e.creado_por AS exp_creado_por
+        FROM automotores a
+        JOIN expedientes e ON e.id = a.expediente_id
+        WHERE {aut_where}
+        ORDER BY a.expediente_id DESC, a.id ASC
+    ''', aut_p)
+
+    exp_dict = {}
+    for c in catastros:
+        eid = c['exp_id']
+        if eid not in exp_dict:
+            exp_dict[eid] = {'id': eid, 'expediente': c['expediente'],
+                             'caratula': c['caratula'], 'creado_por': c['exp_creado_por'],
+                             'catastros': [], 'automotores': []}
+        exp_dict[eid]['catastros'].append(dict(c))
+
+    for a in automotores:
+        eid = a['expediente_id']
+        if eid not in exp_dict:
+            exp_dict[eid] = {'id': eid, 'expediente': a['expediente'],
+                             'caratula': a['caratula'], 'creado_por': a['exp_creado_por'],
+                             'catastros': [], 'automotores': []}
+        exp_dict[eid]['automotores'].append(dict(a))
+
+    grupos, total_usd, total_pesos = [], 0, 0
+    for eid in sorted(exp_dict.keys(), reverse=True):
+        g = exp_dict[eid]
+        # Para el subtotal tomamos solo el registro más reciente por catastro/vehículo
+        # (la reconsideración reemplaza al original, no se suma)
+        efectivos_cat = {}
+        for c in g['catastros']:
+            key = c['catastro'] or str(c['id'])
+            if key not in efectivos_cat or c['id'] > efectivos_cat[key]['id']:
+                efectivos_cat[key] = c
+        sub_usd = sum((c['propuesta'] or 0) for c in efectivos_cat.values())
+
+        efectivos_aut = {}
+        for a in g['automotores']:
+            key = (a['vehiculo'] or '') + '|' + str(a['anio'] or '')
+            if key not in efectivos_aut or a['id'] > efectivos_aut[key]['id']:
+                efectivos_aut[key] = a
+        sub_pesos = sum((a['valor'] or 0) for a in efectivos_aut.values())
+        g['subtotal_usd']   = sub_usd
+        g['subtotal_pesos'] = sub_pesos
+        total_usd   += sub_usd
+        total_pesos += sub_pesos
+        grupos.append(g)
+
+    return grupos, total_usd, total_pesos
+
+
+@app.route('/reporte')
+@login_required
+def reporte():
+    desde   = request.args.get('desde',   '').strip()
+    hasta   = request.args.get('hasta',   '').strip()
+    exp_q   = request.args.get('exp_q',   '').strip()
+    usuario = request.args.get('usuario', '').strip()
+    filtrado = bool(desde or hasta or exp_q or usuario)
+
+    conn = get_db()
+    grupos, total_usd, total_pesos = ([], 0, 0)
+    if filtrado:
+        grupos, total_usd, total_pesos = _query_reporte(conn, desde, hasta, exp_q, usuario)
+    usuarios_lista = [u['username'] for u in fetchall(conn, 'SELECT username FROM usuarios ORDER BY username')]
+    conn.close()
+
+    return render_template('reporte.html',
+                           grupos=grupos, total_usd=total_usd, total_pesos=total_pesos,
+                           desde=desde, hasta=hasta, exp_q=exp_q, usuario=usuario,
+                           filtrado=filtrado, usuarios_lista=usuarios_lista,
+                           usuario_actual=session['usuario'])
+
+
+@app.route('/reporte/excel')
+@login_required
+def reporte_excel():
+    from openpyxl import Workbook
+    from openpyxl.styles import PatternFill, Font, Alignment, Border, Side
+    from openpyxl.utils import get_column_letter
+
+    desde   = request.args.get('desde',   '').strip()
+    hasta   = request.args.get('hasta',   '').strip()
+    exp_q   = request.args.get('exp_q',   '').strip()
+    usuario = request.args.get('usuario', '').strip()
+
+    conn = get_db()
+    grupos, total_usd, total_pesos = _query_reporte(conn, desde, hasta, exp_q, usuario)
+    conn.close()
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = 'Reporte Consolidado'
+
+    fill_exp    = PatternFill('solid', fgColor='0C4566')
+    font_exp    = Font(bold=True, color='FFFFFF', size=11)
+    fill_cat_h  = PatternFill('solid', fgColor='1E5F8A')
+    font_cat_h  = Font(bold=True, color='DBEAFE', size=9)
+    fill_aut_h  = PatternFill('solid', fgColor='065F46')
+    font_aut_h  = Font(bold=True, color='D1FAE5', size=9)
+    fill_sub    = PatternFill('solid', fgColor='EFF6FF')
+    font_sub    = Font(bold=True, size=9, color='1E3A8A')
+    fill_total  = PatternFill('solid', fgColor='0C4566')
+    font_total  = Font(bold=True, color='FFFFFF', size=11)
+    fill_alt    = PatternFill('solid', fgColor='F8F9FB')
+    fill_alt_g  = PatternFill('solid', fgColor='F0FDF4')
+    side        = Side(style='thin', color='D8DCE3')
+    brd         = Border(left=side, right=side, top=side, bottom=side)
+    c_ctr       = Alignment(horizontal='center', vertical='center')
+    c_rgt       = Alignment(horizontal='right',  vertical='center')
+    c_lft       = Alignment(vertical='center')
+    NUM_COLS    = 8
+
+    def merge_write(r, val, fill, font, align=None):
+        ws.merge_cells(f'A{r}:H{r}')
+        cell = ws.cell(row=r, column=1, value=val)
+        cell.fill = fill; cell.font = font
+        cell.alignment = align or Alignment(vertical='center')
+
+    row = 1
+    merge_write(row, 'REPORTE CONSOLIDADO DE VALUACIONES', fill_exp, Font(bold=True, color='FFFFFF', size=14),
+                Alignment(horizontal='center', vertical='center'))
+    ws.row_dimensions[row].height = 28
+    row += 1
+
+    parts = []
+    if desde or hasta:
+        parts.append(f"Período: {desde or '—'} a {hasta or '—'}")
+    if exp_q:
+        parts.append(f"Expediente: {exp_q}")
+    if usuario:
+        parts.append(f"Usuario: {usuario}")
+    parts.append(f"Generado: {datetime.now().strftime('%d/%m/%Y %H:%M')}")
+    merge_write(row, '  |  '.join(parts), PatternFill('solid', fgColor='F0F5F8'),
+                Font(italic=True, size=9, color='475569'),
+                Alignment(horizontal='center', vertical='center'))
+    ws.row_dimensions[row].height = 16
+    row += 2
+
+    for g in grupos:
+        merge_write(row,
+                    f"EXPEDIENTE {g['expediente'] or '—'}  —  {g['caratula'] or '—'}  (Creado por: {g['creado_por'] or '—'})",
+                    fill_exp, font_exp)
+        ws.row_dimensions[row].height = 22
+        row += 1
+
+        if g['catastros']:
+            for ci, h in enumerate(['VR #', 'Catastro', 'Tipo', 'Dirección', 'Total U$S', 'Propuesta U$S', 'Fecha Reg.', 'Reconside.'], 1):
+                cell = ws.cell(row=row, column=ci, value=h)
+                cell.fill = fill_cat_h; cell.font = font_cat_h
+                cell.alignment = c_ctr; cell.border = brd
+            ws.row_dimensions[row].height = 18; row += 1
+
+            for i, c in enumerate(g['catastros']):
+                alt = fill_alt if i % 2 == 0 else PatternFill('solid', fgColor='FFFFFF')
+                row_vals = [c['numero_vr'], c['catastro'], c['tipo_catastro'], c['direccion'],
+                            c['total_usd'], c['propuesta'],
+                            c['fecha_registro'].strftime('%d/%m/%Y %H:%M') if c['fecha_registro'] else None,
+                            'Sí' if c['es_reconsideracion'] else '']
+                row_aligns = ['center','left','center','left','right','right','center','center']
+                for ci, (val, al) in enumerate(zip(row_vals, row_aligns), 1):
+                    cell = ws.cell(row=row, column=ci, value=val)
+                    cell.fill = alt; cell.border = brd; cell.font = Font(size=9)
+                    cell.alignment = c_ctr if al == 'center' else (c_rgt if al == 'right' else c_lft)
+                    if ci in (5, 6) and val is not None:
+                        cell.number_format = '#,##0.00'
+                row += 1
+
+        if g['automotores']:
+            for ci, h in enumerate(['Rec #', 'Vehículo', 'Año', 'Valor $', 'Creado por', 'Fecha Reg.', '', ''], 1):
+                cell = ws.cell(row=row, column=ci, value=h)
+                cell.fill = fill_aut_h; cell.font = font_aut_h
+                cell.alignment = c_ctr; cell.border = brd
+            ws.row_dimensions[row].height = 18; row += 1
+
+            for i, a in enumerate(g['automotores']):
+                alt = fill_alt_g if i % 2 == 0 else PatternFill('solid', fgColor='FFFFFF')
+                row_vals = [a['numero_recuento'], a['vehiculo'], a['anio'], a['valor'],
+                            a['creado_por'],
+                            a['fecha_registro'].strftime('%d/%m/%Y %H:%M') if a['fecha_registro'] else None,
+                            '', '']
+                row_aligns = ['center','left','center','right','center','center','','']
+                for ci, (val, al) in enumerate(zip(row_vals, row_aligns), 1):
+                    cell = ws.cell(row=row, column=ci, value=val)
+                    cell.fill = alt; cell.border = brd; cell.font = Font(size=9)
+                    cell.alignment = c_ctr if al == 'center' else (c_rgt if al == 'right' else c_lft)
+                    if ci == 4 and val is not None:
+                        cell.number_format = '#,##0'
+                row += 1
+
+        ws.merge_cells(f'A{row}:D{row}')
+        ws.cell(row=row, column=1, value='SUBTOTAL').fill = fill_sub
+        ws.cell(row=row, column=1).font = font_sub
+        ws.cell(row=row, column=1).alignment = Alignment(horizontal='right', vertical='center')
+        for ci, (val, fmt) in enumerate([(g['subtotal_usd'], '#,##0.00'), (g['subtotal_pesos'], '#,##0')], 5):
+            cell = ws.cell(row=row, column=ci, value=val)
+            cell.fill = fill_sub; cell.font = font_sub
+            cell.alignment = c_rgt; cell.border = brd
+            cell.number_format = fmt
+        ws.row_dimensions[row].height = 18
+        row += 2
+
+    if grupos:
+        ws.merge_cells(f'A{row}:D{row}')
+        ws.cell(row=row, column=1, value='TOTAL GENERAL').fill = fill_total
+        ws.cell(row=row, column=1).font = font_total
+        ws.cell(row=row, column=1).alignment = Alignment(horizontal='right', vertical='center')
+        for ci, (val, fmt) in enumerate([(total_usd, '#,##0.00'), (total_pesos, '#,##0')], 5):
+            cell = ws.cell(row=row, column=ci, value=val)
+            cell.fill = fill_total; cell.font = font_total
+            cell.alignment = c_rgt; cell.number_format = fmt
+        ws.row_dimensions[row].height = 24
+
+    for ci, w in enumerate([8, 20, 14, 32, 16, 16, 18, 10], 1):
+        ws.column_dimensions[get_column_letter(ci)].width = w
+
+    buf = BytesIO()
+    wb.save(buf); buf.seek(0)
+    fecha = datetime.now().strftime('%Y%m%d')
+    return Response(buf,
+                    mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                    headers={'Content-Disposition': f'attachment; filename="reporte_{fecha}.xlsx"'})
+
+
+@app.route('/reporte/pdf')
+@login_required
+def reporte_pdf():
+    from reportlab.lib import colors
+    from reportlab.lib.pagesizes import landscape, A4
+    from reportlab.lib.units import cm
+    from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, HRFlowable
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.lib.enums import TA_CENTER, TA_RIGHT
+
+    desde   = request.args.get('desde',   '').strip()
+    hasta   = request.args.get('hasta',   '').strip()
+    exp_q   = request.args.get('exp_q',   '').strip()
+    usuario = request.args.get('usuario', '').strip()
+
+    conn = get_db()
+    grupos, total_usd, total_pesos = _query_reporte(conn, desde, hasta, exp_q, usuario)
+    conn.close()
+
+    buf = BytesIO()
+    doc = SimpleDocTemplate(buf, pagesize=landscape(A4),
+                            rightMargin=1.5*cm, leftMargin=1.5*cm,
+                            topMargin=1.5*cm, bottomMargin=1.5*cm)
+
+    styles  = getSampleStyleSheet()
+    brand   = colors.HexColor('#0C4566')
+    brand2  = colors.HexColor('#1E5F8A')
+    grn     = colors.HexColor('#065F46')
+    gray_bg = colors.HexColor('#F1F5F9')
+    grn_bg  = colors.HexColor('#F0FDF4')
+    gray_ln = colors.HexColor('#CBD5E1')
+
+    def _ar(v):
+        return f'{float(v or 0):,.0f}'.replace(',', '.')
+
+    def _ar_p(v):
+        return f'{int(v or 0):,}'.replace(',', '.')
+
+    s_title = ParagraphStyle('t', parent=styles['Heading1'], fontSize=13,
+                              textColor=brand, alignment=TA_CENTER, spaceAfter=3)
+    s_sub   = ParagraphStyle('s', parent=styles['Normal'], fontSize=8,
+                              textColor=colors.HexColor('#64748B'), alignment=TA_CENTER, spaceAfter=10)
+    s_exp   = ParagraphStyle('e', parent=styles['Normal'], fontSize=9.5, fontName='Helvetica-Bold',
+                              textColor=colors.white, backColor=brand,
+                              borderPadding=(4, 6, 4, 6), spaceBefore=10, spaceAfter=2)
+    s_sec   = ParagraphStyle('sec', parent=styles['Normal'], fontSize=7.5,
+                              textColor=colors.HexColor('#64748B'), spaceBefore=4, spaceAfter=2)
+    s_stot  = ParagraphStyle('st', parent=styles['Normal'], fontSize=8.5,
+                              textColor=colors.HexColor('#1E3A8A'), alignment=TA_RIGHT, spaceAfter=4)
+    s_tot   = ParagraphStyle('tot', parent=styles['Heading2'], fontSize=11,
+                              textColor=brand, alignment=TA_RIGHT, spaceBefore=6)
+
+    def mk_table(header, rows, col_widths, hdr_color):
+        data = [header] + rows
+        t = Table(data, colWidths=col_widths)
+        t.setStyle(TableStyle([
+            ('BACKGROUND',   (0, 0), (-1, 0),  hdr_color),
+            ('TEXTCOLOR',    (0, 0), (-1, 0),  colors.white),
+            ('FONTNAME',     (0, 0), (-1, 0),  'Helvetica-Bold'),
+            ('FONTSIZE',     (0, 0), (-1, -1), 7.5),
+            ('GRID',         (0, 0), (-1, -1), 0.4, gray_ln),
+            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, gray_bg]),
+            ('TOPPADDING',   (0, 0), (-1, -1), 3),
+            ('BOTTOMPADDING',(0, 0), (-1, -1), 3),
+            ('VALIGN',       (0, 0), (-1, -1), 'MIDDLE'),
+        ]))
+        return t
+
+    story = []
+    story.append(Paragraph('REPORTE CONSOLIDADO DE VALUACIONES', s_title))
+
+    parts = []
+    if desde or hasta:
+        parts.append(f"Período: {desde or '—'} → {hasta or '—'}")
+    if exp_q:
+        parts.append(f"Expediente: {exp_q}")
+    if usuario:
+        parts.append(f"Usuario: {usuario}")
+    parts.append(f"Generado: {datetime.now().strftime('%d/%m/%Y %H:%M')}")
+    story.append(Paragraph('  |  '.join(parts), s_sub))
+
+    if not grupos:
+        story.append(Paragraph('No se encontraron registros para los filtros seleccionados.', styles['Normal']))
+    else:
+        for g in grupos:
+            story.append(Paragraph(
+                f"EXPEDIENTE {g['expediente'] or '—'}  —  {g['caratula'] or '—'}  "
+                f"<font size='8'>(Creado por: {g['creado_por'] or '—'})</font>", s_exp))
+
+            if g['catastros']:
+                story.append(Paragraph('Inmuebles / Catastros', s_sec))
+                cat_rows = []
+                for c in g['catastros']:
+                    rec = ' (R)' if c['es_reconsideracion'] else ''
+                    cat_rows.append([
+                        str(c['numero_vr'] or '—') + rec,
+                        (c['catastro'] or '—'),
+                        (c['tipo_catastro'] or '—'),
+                        (c['direccion'] or '—')[:50],
+                        f"U$S {_ar(c['total_usd'])}",
+                        f"U$S {_ar(c['propuesta'])}",
+                        c['fecha_registro'].strftime('%d/%m/%y') if c['fecha_registro'] else '—',
+                    ])
+                story.append(mk_table(
+                    ['VR #', 'Catastro', 'Tipo', 'Dirección', 'Total U$S', 'Propuesta U$S', 'Fecha Reg.'],
+                    cat_rows,
+                    [1.8*cm, 3.5*cm, 2.5*cm, 8.5*cm, 3*cm, 3.2*cm, 2.5*cm],
+                    brand2
+                ))
+
+            if g['automotores']:
+                story.append(Spacer(1, 0.2*cm))
+                story.append(Paragraph('Automotores', s_sec))
+                aut_rows = []
+                for a in g['automotores']:
+                    aut_rows.append([
+                        str(a['numero_recuento'] or '—'),
+                        (a['vehiculo'] or '—')[:45],
+                        str(a['anio'] or '—'),
+                        f"$ {_ar_p(a['valor'])}",
+                        a['creado_por'] or '—',
+                        a['fecha_registro'].strftime('%d/%m/%y') if a['fecha_registro'] else '—',
+                        '',
+                    ])
+                aut_t = mk_table(
+                    ['Rec #', 'Vehículo', 'Año', 'Valor $', 'Creado por', 'Fecha Reg.', ''],
+                    aut_rows,
+                    [1.8*cm, 9*cm, 2*cm, 3.5*cm, 2.5*cm, 2.5*cm, 3.7*cm],
+                    grn
+                )
+                aut_t.setStyle(TableStyle([
+                    ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, grn_bg]),
+                ]))
+                story.append(aut_t)
+
+            sub_parts = []
+            if g['subtotal_usd']:
+                sub_parts.append(f"Inmuebles (propuesta): <b>U$S {_ar(g['subtotal_usd'])}</b>")
+            if g['subtotal_pesos']:
+                sub_parts.append(f"Automotores: <b>$ {_ar_p(g['subtotal_pesos'])}</b>")
+            story.append(Paragraph('Subtotal: ' + ('  |  '.join(sub_parts) if sub_parts else '—'), s_stot))
+            story.append(HRFlowable(width='100%', thickness=0.5, color=gray_ln, spaceAfter=2))
+
+        grand = []
+        if total_usd:
+            grand.append(f"U$S {_ar(total_usd)}")
+        if total_pesos:
+            grand.append(f"$ {_ar_p(total_pesos)}")
+        story.append(Paragraph(
+            f"<b>TOTAL GENERAL: {'  +  '.join(grand) if grand else '—'}</b>", s_tot))
+
+    doc.build(story)
+    buf.seek(0)
+    fecha = datetime.now().strftime('%Y%m%d')
+    return Response(buf, mimetype='application/pdf',
+                    headers={'Content-Disposition': f'attachment; filename="reporte_{fecha}.pdf"'})
 
 
 init_db()

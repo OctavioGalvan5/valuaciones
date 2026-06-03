@@ -5,8 +5,13 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>
-        {% if viendo %}Automotor #{{ viendo.numero_recuento }}
-        {% else %}Nuevo Automotor{% endif %}
+        {% if viendo %}
+            Automotor #{{ viendo.numero_recuento }}{% if viendo.es_reconsideracion %} · Reconsideración{% endif %}
+        {% elif reconsiderando %}
+            Reconsideración — Automotor #{{ reconsiderando.numero_recuento }}
+        {% else %}
+            Nuevo Automotor
+        {% endif %}
         — Sistema de Valuaciones
     </title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
@@ -21,8 +26,13 @@
             </a>
             <span class="header-divider"></span>
             <span class="header-title">
-                {% if viendo %}Automotor #{{ viendo.numero_recuento }}
-                {% else %}Nuevo Automotor{% endif %}
+                {% if viendo %}
+                    Automotor #{{ viendo.numero_recuento }}
+                {% elif reconsiderando %}
+                    Reconsideración — Automotor #{{ reconsiderando.numero_recuento }}
+                {% else %}
+                    Nuevo Automotor
+                {% endif %}
             </span>
         </div>
         <div class="header-stats">
@@ -59,21 +69,46 @@
         </div>
         {% endif %}
 
+        <!-- Aviso de reconsideración en curso -->
+        {% if reconsiderando %}
+        <div style="background:#FEF3C7; border:1px solid #FDE68A; border-radius:10px; padding:14px 20px; margin-bottom:20px; display:flex; align-items:center; gap:12px;">
+            <span style="font-size:1.3rem;">⚠️</span>
+            <div>
+                <div style="font-weight:700; color:#92400E; font-size:0.9rem;">
+                    Reconsiderando Automotor #{{ reconsiderando.numero_recuento }} — {{ reconsiderando.vehiculo or '—' }} ({{ reconsiderando.anio or '—' }})
+                </div>
+                <div style="color:#B45309; font-size:0.82rem; margin-top:2px;">
+                    Se creará un nuevo registro. Valor anterior:
+                    <strong>$ {{ '{:,.0f}'.format(reconsiderando.valor).replace(',', '.') if reconsiderando.valor else '—' }}</strong>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
         <!-- Formulario / Vista -->
         <div class="card">
             <div class="card-header" style="display:flex; align-items:center; justify-content:space-between;">
                 <span>
                     {% if viendo %}
                         Datos del Automotor &mdash; Recuento #{{ viendo.numero_recuento }}
+                        {% if viendo.es_reconsideracion %}
+                        <span style="background:#FEF3C7; color:#92400E; padding:2px 8px; border-radius:4px; font-size:0.75rem; font-weight:600; margin-left:8px; border:1px solid #FDE68A;">Reconsideración</span>
+                        {% endif %}
+                    {% elif reconsiderando %}
+                        Nueva Reconsideración
                     {% else %}
                         Datos del Automotor
                     {% endif %}
                 </span>
                 {% if viendo and expediente_obj and expediente_obj.activa %}
-                <form method="POST" action="{{ url_for('eliminar_automotor', auto_id=viendo.id) }}"
-                      onsubmit="return confirm('¿Eliminar este automotor? Esta acción no se puede deshacer.')">
-                    <button type="submit" class="btn btn-sm btn-deactivate">Eliminar</button>
-                </form>
+                <div style="display:flex; gap:8px;">
+                    <a href="{{ url_for('reconsiderar_automotor', auto_id=viendo.id) }}"
+                       class="btn btn-sm btn-edit">Reconsiderar</a>
+                    <form method="POST" action="{{ url_for('eliminar_automotor', auto_id=viendo.id) }}"
+                          onsubmit="return confirm('¿Eliminar este automotor? Esta acción no se puede deshacer.')">
+                        <button type="submit" class="btn btn-sm btn-deactivate">Eliminar</button>
+                    </form>
+                </div>
                 {% endif %}
             </div>
             <div class="card-body">
@@ -106,6 +141,13 @@
                         <label>Cargado por</label>
                         <input type="text" value="{{ viendo.creado_por or '—' }}" readonly>
                     </div>
+                    {% if viendo.es_reconsideracion and viendo.editado_por %}
+                    <div class="form-group">
+                        <label>Reconsiderado por</label>
+                        <input type="text" value="{{ viendo.editado_por }}" readonly
+                               style="color:#92400E; font-weight:600;">
+                    </div>
+                    {% endif %}
                     {% if viendo.observaciones %}
                     <div class="form-group" style="grid-column: 1 / -1;">
                         <label>Observaciones</label>
@@ -115,15 +157,16 @@
                 </div>
 
                 {% else %}
-                <!-- Modo formulario nuevo -->
+                <!-- Modo formulario: nuevo o reconsideración -->
                 <form method="POST"
-                      action="{{ url_for('guardar_automotor', exp_id=expediente_obj.id) }}"
+                      action="{% if reconsiderando %}{{ url_for('guardar_reconsideracion_automotor', auto_id=reconsiderando.id) }}{% else %}{{ url_for('guardar_automotor', exp_id=expediente_obj.id) }}{% endif %}"
                       enctype="multipart/form-data">
 
                     <div class="form-grid">
                         <div class="form-group" style="grid-column: 1 / -1;">
                             <label>Vehículo <span style="color:#ef4444;">*</span></label>
                             <input type="text" name="vehiculo" required
+                                   value="{{ reconsiderando.vehiculo if reconsiderando else '' }}"
                                    placeholder="Ej: FORD RANGER DC 4X2 XLT 2.5L N"
                                    style="text-transform: uppercase;"
                                    oninput="this.value = this.value.toUpperCase()">
@@ -131,23 +174,26 @@
                         <div class="form-group">
                             <label>Año <span style="color:#ef4444;">*</span></label>
                             <input type="number" name="anio" required min="1900" max="2099"
+                                   value="{{ reconsiderando.anio if reconsiderando else '' }}"
                                    placeholder="2024">
                         </div>
                         <div class="form-group">
                             <label>Valor ($) <span style="color:#ef4444;">*</span></label>
                             <input type="text" name="valor" id="valor" required
+                                   value="{{ reconsiderando.valor if reconsiderando else '' }}"
                                    placeholder="Ej: 25495100"
                                    oninput="formatearValor(this)">
                             <small style="color:#6b7280; font-size:0.78rem;">Solo números, sin puntos ni comas</small>
                         </div>
                         <div class="form-group">
                             <label>Fecha <span style="color:#ef4444;">*</span></label>
-                            <input type="date" name="fecha" required value="{{ today }}">
+                            <input type="date" name="fecha" required
+                                   value="{{ reconsiderando.fecha if reconsiderando else today }}">
                         </div>
                         <div class="form-group" style="grid-column: 1 / -1;">
                             <label>Observaciones</label>
                             <textarea name="observaciones" rows="3"
-                                      placeholder="Observaciones opcionales..."></textarea>
+                                      placeholder="Observaciones opcionales...">{{ reconsiderando.observaciones if reconsiderando else '' }}</textarea>
                         </div>
                     </div>
 
@@ -169,7 +215,13 @@
                            class="btn" style="background:#f3f4f6; color:#374151; border:1px solid #d1d5db;">
                             Cancelar
                         </a>
+                        {% if reconsiderando %}
+                        <button type="submit" class="btn btn-primary" style="background:#D97706;">
+                            Guardar Reconsideración
+                        </button>
+                        {% else %}
                         <button type="submit" class="btn btn-primary">Guardar Automotor</button>
+                        {% endif %}
                     </div>
                 </form>
                 {% endif %}
@@ -246,7 +298,6 @@
 
     <script>
         function formatearValor(input) {
-            // Solo permite números
             input.value = input.value.replace(/[^0-9]/g, '');
         }
     </script>
