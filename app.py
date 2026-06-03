@@ -6,7 +6,20 @@ import re
 import math
 import uuid
 from io import BytesIO
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
+
+AR_TZ = timezone(timedelta(hours=-3))
+
+def ar_now():
+    return datetime.now(AR_TZ)
+
+def to_ar(dt):
+    """Convert a naive UTC datetime (from DB) to Argentina time."""
+    if dt is None:
+        return None
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(AR_TZ)
 from functools import wraps
 
 import psycopg2
@@ -1529,11 +1542,11 @@ def _query_reporte(conn, desde, hasta, exp_q, usuario):
     aut_cond, aut_p = [], []
 
     if desde:
-        cat_cond.append('c.fecha_registro::date >= %s'); cat_p.append(desde)
-        aut_cond.append('a.fecha_registro::date >= %s'); aut_p.append(desde)
+        cat_cond.append("(c.fecha_registro AT TIME ZONE 'UTC' AT TIME ZONE 'America/Argentina/Buenos_Aires')::date >= %s"); cat_p.append(desde)
+        aut_cond.append("(a.fecha_registro AT TIME ZONE 'UTC' AT TIME ZONE 'America/Argentina/Buenos_Aires')::date >= %s"); aut_p.append(desde)
     if hasta:
-        cat_cond.append('c.fecha_registro::date <= %s'); cat_p.append(hasta)
-        aut_cond.append('a.fecha_registro::date <= %s'); aut_p.append(hasta)
+        cat_cond.append("(c.fecha_registro AT TIME ZONE 'UTC' AT TIME ZONE 'America/Argentina/Buenos_Aires')::date <= %s"); cat_p.append(hasta)
+        aut_cond.append("(a.fecha_registro AT TIME ZONE 'UTC' AT TIME ZONE 'America/Argentina/Buenos_Aires')::date <= %s"); aut_p.append(hasta)
     if exp_q:
         cat_cond.append('e.expediente ILIKE %s'); cat_p.append(f'%{exp_q}%')
         aut_cond.append('e.expediente ILIKE %s'); aut_p.append(f'%{exp_q}%')
@@ -1718,7 +1731,7 @@ def reporte_excel():
                 alt = fill_alt if i % 2 == 0 else PatternFill('solid', fgColor='FFFFFF')
                 row_vals = [c['numero_vr'], c['catastro'], c['tipo_catastro'], c['direccion'],
                             c['total_usd'], c['propuesta'],
-                            c['fecha_registro'].strftime('%d/%m/%Y %H:%M') if c['fecha_registro'] else None,
+                            to_ar(c['fecha_registro']).strftime('%d/%m/%Y %H:%M') if c['fecha_registro'] else None,
                             'Sí' if c['es_reconsideracion'] else '']
                 row_aligns = ['center','left','center','left','right','right','center','center']
                 for ci, (val, al) in enumerate(zip(row_vals, row_aligns), 1):
@@ -1740,7 +1753,7 @@ def reporte_excel():
                 alt = fill_alt_g if i % 2 == 0 else PatternFill('solid', fgColor='FFFFFF')
                 row_vals = [a['numero_recuento'], a['vehiculo'], a['anio'], a['valor'],
                             a['creado_por'],
-                            a['fecha_registro'].strftime('%d/%m/%Y %H:%M') if a['fecha_registro'] else None,
+                            to_ar(a['fecha_registro']).strftime('%d/%m/%Y %H:%M') if a['fecha_registro'] else None,
                             '', '']
                 row_aligns = ['center','left','center','right','center','center','','']
                 for ci, (val, al) in enumerate(zip(row_vals, row_aligns), 1):
@@ -1886,7 +1899,7 @@ def reporte_pdf():
                         (c['direccion'] or '—')[:50],
                         f"U$S {_ar(c['total_usd'])}",
                         f"U$S {_ar(c['propuesta'])}",
-                        c['fecha_registro'].strftime('%d/%m/%y') if c['fecha_registro'] else '—',
+                        to_ar(c['fecha_registro']).strftime('%d/%m/%y') if c['fecha_registro'] else '—',
                     ])
                 story.append(mk_table(
                     ['VR #', 'Catastro', 'Tipo', 'Dirección', 'Total U$S', 'Propuesta U$S', 'Fecha Reg.'],
@@ -1906,7 +1919,7 @@ def reporte_pdf():
                         str(a['anio'] or '—'),
                         f"$ {_ar_p(a['valor'])}",
                         a['creado_por'] or '—',
-                        a['fecha_registro'].strftime('%d/%m/%y') if a['fecha_registro'] else '—',
+                        to_ar(a['fecha_registro']).strftime('%d/%m/%y') if a['fecha_registro'] else '—',
                         '',
                     ])
                 aut_t = mk_table(
