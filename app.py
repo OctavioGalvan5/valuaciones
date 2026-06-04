@@ -291,6 +291,9 @@ def init_db():
     execute(conn, 'ALTER TABLE automotores ADD COLUMN IF NOT EXISTS cotizacion_dolar NUMERIC DEFAULT 0')
     execute(conn, "ALTER TABLE automotores ADD COLUMN IF NOT EXISTS valor_moneda TEXT DEFAULT 'ARS'")
 
+    # Otro link adicional en catastros
+    execute(conn, 'ALTER TABLE catastros ADD COLUMN IF NOT EXISTS otro_link TEXT')
+
     # ---- Tabla usuarios ----
     execute(conn, '''
         CREATE TABLE IF NOT EXISTS usuarios (
@@ -484,6 +487,7 @@ def _calcular_catastro(data):
         monto_moneda=monto_moneda,
         denuncia=data.get('denuncia', '').strip(),
         gmaps_zona=gmaps_zona, gmaps_frente=gmaps_frente,
+        otro_link=data.get('otro_link', '').strip(),
         terreno_total=terreno_total, fot=fot, fos=fos,
         sup_edif_total=sup_edif_total, pisos_maximos=pisos_maximos,
         porcentaje_emprendimiento=porcentaje_emprendimiento,
@@ -799,7 +803,7 @@ def guardar_catastro(exp_id):
             sup_edif_m2, edif_frente_lado, edif_antes_revision, usd_m2_edif,
             valor_dolar,
             total_usd_terreno, total_usd_edif, total_usd, propuesta, propuesta_moneda, monto, monto_moneda,
-            denuncia, gmaps_zona, gmaps_frente,
+            denuncia, gmaps_zona, gmaps_frente, otro_link,
             terreno_total, fot, fos, sup_edif_total, pisos_maximos,
             porcentaje_emprendimiento, costo_usd_m2_emprendimiento, emprendimiento,
             observaciones, latitud, longitud
@@ -813,7 +817,7 @@ def guardar_catastro(exp_id):
             %s, %s, %s, %s,
             %s,
             %s, %s, %s, %s, %s, %s, %s,
-            %s, %s, %s,
+            %s, %s, %s, %s,
             %s, %s, %s, %s, %s,
             %s, %s, %s,
             %s, %s, %s
@@ -828,7 +832,7 @@ def guardar_catastro(exp_id):
         c['sup_edif_m2'], c['edif_frente_lado'], c['edif_antes_revision'], c['usd_m2_edif'],
         c['valor_dolar'],
         c['total_usd_terreno'], c['total_usd_edif'], c['total_usd'], c['propuesta'], c['propuesta_moneda'], c['monto'], c['monto_moneda'],
-        c['denuncia'], c['gmaps_zona'], c['gmaps_frente'],
+        c['denuncia'], c['gmaps_zona'], c['gmaps_frente'], c['otro_link'],
         c['terreno_total'], c['fot'], c['fos'], c['sup_edif_total'], c['pisos_maximos'],
         c['porcentaje_emprendimiento'], c['costo_usd_m2_emprendimiento'], c['emprendimiento'],
         c['observaciones'], c['latitud'], c['longitud'],
@@ -915,6 +919,74 @@ def ver(cat_id):
                            usuario=session['usuario'])
 
 
+@app.route('/editar_catastro/<int:cat_id>')
+@login_required
+def editar_catastro(cat_id):
+    conn = get_db()
+    catastro = fetchone(conn, 'SELECT * FROM catastros WHERE id = %s', (cat_id,))
+    if not catastro:
+        conn.close()
+        return redirect(url_for('index'))
+    exp = fetchone(conn, 'SELECT * FROM expedientes WHERE id = %s', (catastro['expediente_id'],))
+    conn.close()
+    return render_template('form.html',
+                           editando=catastro,
+                           expediente_obj=exp,
+                           today=datetime.now().strftime('%Y-%m-%d'),
+                           usuario=session['usuario'])
+
+
+@app.route('/guardar_editar_catastro/<int:cat_id>', methods=['POST'])
+@login_required
+def guardar_editar_catastro(cat_id):
+    usuario_actual = session['usuario']
+    data = request.form
+
+    conn = get_db()
+    cat = fetchone(conn, 'SELECT expediente_id FROM catastros WHERE id = %s', (cat_id,))
+    if not cat:
+        conn.close()
+        return redirect(url_for('index'))
+    exp_id = cat['expediente_id']
+
+    c = _calcular_catastro(data)
+    execute(conn, '''
+        UPDATE catastros SET
+            catastro=%s, tipo_catastro=%s, direccion=%s, fecha=%s,
+            terreno_m2=%s, terreno_frente_lado=%s, terreno_antes_revision=%s, usd_m2_terreno=%s,
+            productiva_hect=%s, productiva_frente_lado=%s, productiva_antes_revision=%s, usd_hect_productiva=%s,
+            con_monte_hect=%s, con_monte_frente_lado=%s, con_monte_antes_revision=%s, usd_hect_con_monte=%s,
+            cerros_hect=%s, cerros_frente_lado=%s, cerros_antes_revision=%s, usd_hect_cerros=%s,
+            sup_edif_m2=%s, edif_frente_lado=%s, edif_antes_revision=%s, usd_m2_edif=%s,
+            valor_dolar=%s,
+            total_usd_terreno=%s, total_usd_edif=%s, total_usd=%s,
+            propuesta=%s, propuesta_moneda=%s, monto=%s, monto_moneda=%s,
+            denuncia=%s, gmaps_zona=%s, gmaps_frente=%s, otro_link=%s,
+            terreno_total=%s, fot=%s, fos=%s, sup_edif_total=%s, pisos_maximos=%s,
+            porcentaje_emprendimiento=%s, costo_usd_m2_emprendimiento=%s, emprendimiento=%s,
+            observaciones=%s, latitud=%s, longitud=%s, editado_por=%s
+        WHERE id=%s
+    ''', (
+        c['catastro'], c['tipo_catastro'], c['direccion'], c['fecha'],
+        c['terreno_m2'], c['terreno_frente_lado'], c['terreno_antes_revision'], c['usd_m2_terreno'],
+        c['productiva_hect'], c['productiva_frente_lado'], c['productiva_antes_revision'], c['usd_hect_productiva'],
+        c['con_monte_hect'], c['con_monte_frente_lado'], c['con_monte_antes_revision'], c['usd_hect_con_monte'],
+        c['cerros_hect'], c['cerros_frente_lado'], c['cerros_antes_revision'], c['usd_hect_cerros'],
+        c['sup_edif_m2'], c['edif_frente_lado'], c['edif_antes_revision'], c['usd_m2_edif'],
+        c['valor_dolar'],
+        c['total_usd_terreno'], c['total_usd_edif'], c['total_usd'],
+        c['propuesta'], c['propuesta_moneda'], c['monto'], c['monto_moneda'],
+        c['denuncia'], c['gmaps_zona'], c['gmaps_frente'], c['otro_link'],
+        c['terreno_total'], c['fot'], c['fos'], c['sup_edif_total'], c['pisos_maximos'],
+        c['porcentaje_emprendimiento'], c['costo_usd_m2_emprendimiento'], c['emprendimiento'],
+        c['observaciones'], c['latitud'], c['longitud'], usuario_actual,
+        cat_id,
+    ))
+    conn.commit()
+    conn.close()
+    return redirect(url_for('expediente_detail', exp_id=exp_id))
+
+
 @app.route('/reconsiderar/<int:cat_id>')
 @login_required
 def reconsiderar(cat_id):
@@ -980,7 +1052,7 @@ def guardar_reconsideracion(cat_id):
             sup_edif_m2, edif_frente_lado, edif_antes_revision, usd_m2_edif,
             valor_dolar,
             total_usd_terreno, total_usd_edif, total_usd, propuesta, propuesta_moneda, monto, monto_moneda,
-            denuncia, gmaps_zona, gmaps_frente,
+            denuncia, gmaps_zona, gmaps_frente, otro_link,
             terreno_total, fot, fos, sup_edif_total, pisos_maximos,
             porcentaje_emprendimiento, costo_usd_m2_emprendimiento, emprendimiento,
             observaciones, latitud, longitud, editado_por, es_reconsideracion
@@ -994,7 +1066,7 @@ def guardar_reconsideracion(cat_id):
             %s, %s, %s, %s,
             %s,
             %s, %s, %s, %s, %s, %s, %s,
-            %s, %s, %s,
+            %s, %s, %s, %s,
             %s, %s, %s, %s, %s,
             %s, %s, %s,
             %s, %s, %s, %s, TRUE
@@ -1009,7 +1081,7 @@ def guardar_reconsideracion(cat_id):
         c['sup_edif_m2'], c['edif_frente_lado'], c['edif_antes_revision'], c['usd_m2_edif'],
         c['valor_dolar'],
         c['total_usd_terreno'], c['total_usd_edif'], c['total_usd'], c['propuesta'], c['propuesta_moneda'], c['monto'], c['monto_moneda'],
-        c['denuncia'], c['gmaps_zona'], c['gmaps_frente'],
+        c['denuncia'], c['gmaps_zona'], c['gmaps_frente'], c['otro_link'],
         c['terreno_total'], c['fot'], c['fos'], c['sup_edif_total'], c['pisos_maximos'],
         c['porcentaje_emprendimiento'], c['costo_usd_m2_emprendimiento'], c['emprendimiento'],
         c['observaciones'], c['latitud'], c['longitud'], usuario_actual
@@ -1350,6 +1422,57 @@ def ver_automotor(auto_id):
                            archivos=archivos,
                            today=datetime.now().strftime('%Y-%m-%d'),
                            usuario=session['usuario'])
+
+
+@app.route('/editar_automotor/<int:auto_id>')
+@login_required
+def editar_automotor(auto_id):
+    conn = get_db()
+    automotor = fetchone(conn, 'SELECT * FROM automotores WHERE id = %s', (auto_id,))
+    if not automotor:
+        conn.close()
+        return redirect(url_for('index'))
+    exp = fetchone(conn, 'SELECT * FROM expedientes WHERE id = %s', (automotor['expediente_id'],))
+    conn.close()
+    return render_template('form_automotor.html',
+                           editando=automotor,
+                           expediente_obj=exp,
+                           today=datetime.now().strftime('%Y-%m-%d'),
+                           usuario=session['usuario'])
+
+
+@app.route('/guardar_editar_automotor/<int:auto_id>', methods=['POST'])
+@login_required
+def guardar_editar_automotor(auto_id):
+    usuario_actual = session['usuario']
+    data = request.form
+
+    conn = get_db()
+    auto = fetchone(conn, 'SELECT expediente_id FROM automotores WHERE id = %s', (auto_id,))
+    if not auto:
+        conn.close()
+        return redirect(url_for('index'))
+    exp_id = auto['expediente_id']
+
+    execute(conn, '''
+        UPDATE automotores SET
+            vehiculo=%s, anio=%s, valor=%s, fecha=%s,
+            observaciones=%s, cotizacion_dolar=%s, valor_moneda=%s, editado_por=%s
+        WHERE id=%s
+    ''', (
+        data.get('vehiculo', '').strip().upper(),
+        parse_int(data.get('anio')),
+        parse_pesos(data.get('valor')),
+        data.get('fecha', ''),
+        data.get('observaciones', '').strip(),
+        parse_float(data.get('cotizacion_dolar')),
+        data.get('valor_moneda', 'ARS') or 'ARS',
+        usuario_actual,
+        auto_id,
+    ))
+    conn.commit()
+    conn.close()
+    return redirect(url_for('expediente_detail', exp_id=exp_id))
 
 
 @app.route('/reconsiderar_automotor/<int:auto_id>')

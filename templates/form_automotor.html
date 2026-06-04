@@ -94,6 +94,8 @@
                         {% if viendo.es_reconsideracion %}
                         <span style="background:#FEF3C7; color:#92400E; padding:2px 8px; border-radius:4px; font-size:0.75rem; font-weight:600; margin-left:8px; border:1px solid #FDE68A;">Reconsideración</span>
                         {% endif %}
+                    {% elif editando %}
+                        Editar Automotor &mdash; Recuento #{{ editando.numero_recuento }}
                     {% elif reconsiderando %}
                         Nueva Reconsideración
                     {% else %}
@@ -102,6 +104,8 @@
                 </span>
                 {% if viendo and expediente_obj and expediente_obj.activa %}
                 <div style="display:flex; gap:8px;">
+                    <a href="{{ url_for('editar_automotor', auto_id=viendo.id) }}"
+                       class="btn btn-sm btn-warning">Editar</a>
                     <a href="{{ url_for('reconsiderar_automotor', auto_id=viendo.id) }}"
                        class="btn btn-sm btn-edit">Reconsiderar</a>
                     <form method="POST" action="{{ url_for('eliminar_automotor', auto_id=viendo.id) }}"
@@ -170,16 +174,17 @@
                 </div>
 
                 {% else %}
-                <!-- Modo formulario: nuevo o reconsideración -->
+                <!-- Modo formulario: nuevo, edición o reconsideración -->
+                {% set form_datos = editando or reconsiderando %}
                 <form method="POST"
-                      action="{% if reconsiderando %}{{ url_for('guardar_reconsideracion_automotor', auto_id=reconsiderando.id) }}{% else %}{{ url_for('guardar_automotor', exp_id=expediente_obj.id) }}{% endif %}"
+                      action="{% if editando %}{{ url_for('guardar_editar_automotor', auto_id=editando.id) }}{% elif reconsiderando %}{{ url_for('guardar_reconsideracion_automotor', auto_id=reconsiderando.id) }}{% else %}{{ url_for('guardar_automotor', exp_id=expediente_obj.id) }}{% endif %}"
                       enctype="multipart/form-data">
 
                     <div class="form-grid">
                         <div class="form-group" style="grid-column: 1 / -1;">
                             <label>Vehículo <span style="color:#ef4444;">*</span></label>
                             <input type="text" name="vehiculo" required
-                                   value="{{ reconsiderando.vehiculo if reconsiderando else '' }}"
+                                   value="{{ form_datos.vehiculo if form_datos else '' }}"
                                    placeholder="Ej: FORD RANGER DC 4X2 XLT 2.5L N"
                                    style="text-transform: uppercase;"
                                    oninput="this.value = this.value.toUpperCase()">
@@ -187,7 +192,7 @@
                         <div class="form-group">
                             <label>Año <span style="color:#ef4444;">*</span></label>
                             <input type="number" name="anio" required min="1900" max="2099"
-                                   value="{{ reconsiderando.anio if reconsiderando else '' }}"
+                                   value="{{ form_datos.anio if form_datos else '' }}"
                                    placeholder="2024">
                         </div>
                         <div class="form-group">
@@ -195,12 +200,12 @@
                                 Valor <span style="color:#ef4444;">*</span>
                                 <select name="valor_moneda" id="valor_moneda" onchange="calcEquiv()"
                                         style="margin-left:6px; font-size:0.78rem; padding:2px 6px; border-radius:4px; border:1px solid #d1d5db; background:#f9fafb; font-weight:600; cursor:pointer;">
-                                    <option value="ARS" {% if not reconsiderando or not reconsiderando.valor_moneda or reconsiderando.valor_moneda == 'ARS' %}selected{% endif %}>$ Pesos</option>
-                                    <option value="USD" {% if reconsiderando and reconsiderando.valor_moneda == 'USD' %}selected{% endif %}>U$S Dólar</option>
+                                    <option value="ARS" {% if not form_datos or not form_datos.valor_moneda or form_datos.valor_moneda == 'ARS' %}selected{% endif %}>$ Pesos</option>
+                                    <option value="USD" {% if form_datos and form_datos.valor_moneda == 'USD' %}selected{% endif %}>U$S Dólar</option>
                                 </select>
                             </label>
                             <input type="text" name="valor" id="valor" required
-                                   value="{{ reconsiderando.valor if reconsiderando else '' }}"
+                                   value="{{ form_datos.valor if form_datos else '' }}"
                                    placeholder="Ej: 25495100"
                                    oninput="formatearValor(this); calcEquiv();">
                             <small style="color:#6b7280; font-size:0.78rem;">Solo números, sin puntos ni comas</small>
@@ -208,23 +213,24 @@
                         <div class="form-group">
                             <label>Cotización dólar</label>
                             <input type="number" name="cotizacion_dolar" id="cotizacion_dolar" step="0.01" placeholder="Ej: 1200"
-                                   value="{{ reconsiderando.cotizacion_dolar if reconsiderando and reconsiderando.cotizacion_dolar else '' }}"
+                                   value="{{ form_datos.cotizacion_dolar if form_datos and form_datos.cotizacion_dolar else '' }}"
                                    oninput="calcEquiv()">
                             <div id="valor_equiv" style="font-size:0.78rem; color:#1e3a8a; margin-top:3px; font-weight:600;"></div>
                         </div>
                         <div class="form-group">
                             <label>Fecha <span style="color:#ef4444;">*</span></label>
                             <input type="date" name="fecha" required
-                                   value="{{ reconsiderando.fecha if reconsiderando else today }}">
+                                   value="{{ form_datos.fecha if form_datos else today }}">
                         </div>
                         <div class="form-group" style="grid-column: 1 / -1;">
                             <label>Observaciones</label>
                             <textarea name="observaciones" rows="3"
-                                      placeholder="Observaciones opcionales...">{{ reconsiderando.observaciones if reconsiderando else '' }}</textarea>
+                                      placeholder="Observaciones opcionales...">{{ form_datos.observaciones if form_datos else '' }}</textarea>
                         </div>
                     </div>
 
                     <!-- Archivos -->
+                    {% if not editando %}
                     <div class="section-divider" style="margin: 24px 0 16px;">
                         <span>Archivos adjuntos (opcional)</span>
                     </div>
@@ -236,13 +242,18 @@
                             PDF, Word, Excel, imágenes — máx. 20 MB por archivo
                         </small>
                     </div>
+                    {% endif %}
 
                     <div class="form-actions" style="margin-top: 28px; display:flex; justify-content:flex-end; gap:12px; border-top: 1px solid #e5e7eb; padding-top: 20px;">
                         <a href="{{ url_for('expediente_detail', exp_id=expediente_obj.id) }}"
                            class="btn" style="background:#f3f4f6; color:#374151; border:1px solid #d1d5db;">
                             Cancelar
                         </a>
-                        {% if reconsiderando %}
+                        {% if editando %}
+                        <button type="submit" class="btn btn-primary" style="background:#D97706;">
+                            Guardar Edición
+                        </button>
+                        {% elif reconsiderando %}
                         <button type="submit" class="btn btn-primary" style="background:#D97706;">
                             Guardar Reconsideración
                         </button>

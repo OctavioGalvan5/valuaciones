@@ -6,6 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>
         {% if viendo %}Ver VR #{{ viendo.id }}
+        {% elif editando %}Editar VR #{{ editando.id }}
         {% elif reconsiderando %}Reconsiderar VR #{{ reconsiderando.id }}
         {% else %}Nuevo Catastro &mdash; Exp. {{ expediente_obj.expediente }}
         {% endif %} — Sistema de Valuaciones
@@ -24,6 +25,7 @@
             <span class="header-divider"></span>
             <span class="header-title">
                 {% if viendo %}VR #{{ viendo.id }}
+                {% elif editando %}Editar VR #{{ editando.id }}
                 {% elif reconsiderando %}Reconsideración #{{ reconsiderando.id }}
                 {% else %}Nuevo Catastro
                 {% endif %}
@@ -60,6 +62,7 @@
         <div class="card">
             <div class="card-header">
                 {% if viendo %}Ver Valuación &mdash; VR #{{ viendo.id }}
+                {% elif editando %}Editar Valuación &mdash; VR #{{ editando.id }}
                 {% elif reconsiderando %}Reconsiderar Valuación &mdash; VR #{{ reconsiderando.id }}
                 {% else %}Nuevo Catastro &mdash; Exp. {{ expediente_obj.expediente }}
                 {% endif %}
@@ -70,6 +73,9 @@
                 {% if viendo %}
                 {% set readonly = true %}
                 {% set datos = viendo %}
+                {% elif editando %}
+                {% set readonly = false %}
+                {% set datos = editando %}
                 {% elif reconsiderando %}
                 {% set readonly = false %}
                 {% set datos = reconsiderando %}
@@ -80,11 +86,14 @@
 
                 <form id="form-valuacion" method="POST" enctype="multipart/form-data"
                     action="
-                    {%- if reconsiderando -%}{{ url_for('guardar_reconsideracion', cat_id=reconsiderando.id) }}
+                    {%- if editando -%}{{ url_for('guardar_editar_catastro', cat_id=editando.id) }}
+                    {%- elif reconsiderando -%}{{ url_for('guardar_reconsideracion', cat_id=reconsiderando.id) }}
                     {%- else -%}{{ url_for('guardar_catastro', exp_id=expediente_obj.id) }}
                     {%- endif -%}">
 
-                    {% if reconsiderando %}
+                    {% if editando %}
+                    <input type="hidden" id="editando_id" value="{{ editando.id }}">
+                    {% elif reconsiderando %}
                     <input type="hidden" id="editando_id" value="{{ reconsiderando.id }}">
                     {% endif %}
                     {% if viendo %}
@@ -313,6 +322,12 @@
                                 placeholder="https://www.google.com/maps/..."
                                 value="{{ datos.gmaps_frente if datos else '' }}" {% if readonly %}readonly{% endif %}>
                         </div>
+                        <div class="form-group span-2">
+                            <label>Otro Link</label>
+                            <input type="url" name="otro_link" id="otro_link"
+                                placeholder="https://..."
+                                value="{{ datos.otro_link if datos and datos.otro_link else '' }}" {% if readonly %}readonly{% endif %}>
+                        </div>
                     </div>
 
                     <!-- Datos Urbanísticos + Emprendimiento (colapsable) -->
@@ -412,9 +427,10 @@
                     <div class="form-actions">
                         {% if viendo %}
                         <a href="{{ url_for('expediente_detail', exp_id=expediente_obj.id) }}" class="btn btn-danger">Volver</a>
+                        <a href="{{ url_for('editar_catastro', cat_id=viendo.id) }}" class="btn btn-warning">Editar</a>
                         <a href="{{ url_for('reconsiderar', cat_id=viendo.id) }}" class="btn btn-primary">Reconsiderar</a>
                         {% else %}
-                            {% if reconsiderando %}
+                            {% if editando or reconsiderando %}
                             <a href="{{ url_for('expediente_detail', exp_id=expediente_obj.id) }}" class="btn btn-danger">Cancelar</a>
                             {% elif expediente_obj %}
                             <a href="{{ url_for('expediente_detail', exp_id=expediente_obj.id) }}" class="btn btn-danger">Cancelar</a>
@@ -423,7 +439,9 @@
                             {% endif %}
                             <button type="button" class="btn btn-warning" onclick="verificar()">Verificar</button>
                             <button type="submit" class="btn btn-primary" id="btn-guardar">
-                                {% if reconsiderando %}Guardar Reconsideración{% else %}Guardar{% endif %}
+                                {% if editando %}Guardar Edición
+                                {% elif reconsiderando %}Guardar Reconsideración
+                                {% else %}Guardar{% endif %}
                             </button>
                         {% endif %}
                     </div>
