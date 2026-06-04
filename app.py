@@ -246,6 +246,7 @@ def init_db():
         "WHERE table_name='archivos' AND column_name='valuacion_id'")
     if old_col:
         execute(conn, 'UPDATE archivos SET catastro_id = valuacion_id WHERE catastro_id IS NULL')
+        execute(conn, 'ALTER TABLE archivos DROP COLUMN IF EXISTS valuacion_id')
 
     # ---- Tabla automotores ----
     execute(conn, '''
