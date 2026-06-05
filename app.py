@@ -294,6 +294,9 @@ def init_db():
     # Otro link adicional en catastros
     execute(conn, 'ALTER TABLE catastros ADD COLUMN IF NOT EXISTS otro_link TEXT')
 
+    # Departamento en catastros
+    execute(conn, 'ALTER TABLE catastros ADD COLUMN IF NOT EXISTS departamento TEXT')
+
     # ---- Tabla usuarios ----
     execute(conn, '''
         CREATE TABLE IF NOT EXISTS usuarios (
@@ -454,6 +457,10 @@ def _calcular_catastro(data):
     gmaps_frente = data.get('gmaps_frente', '').strip()
     lat, lon = extraer_coordenadas(gmaps_frente or gmaps_zona)
 
+    dep_sel   = data.get('departamento_sel', '').strip()
+    dep_otro  = data.get('departamento_otro', '').strip()
+    departamento = dep_otro if dep_sel == 'Otros' else dep_sel
+
     return dict(
         tipo_catastro=tipo_catastro,
         catastro=data.get('catastro', '').strip(),
@@ -488,6 +495,7 @@ def _calcular_catastro(data):
         denuncia=data.get('denuncia', '').strip(),
         gmaps_zona=gmaps_zona, gmaps_frente=gmaps_frente,
         otro_link=data.get('otro_link', '').strip(),
+        departamento=departamento,
         terreno_total=terreno_total, fot=fot, fos=fos,
         sup_edif_total=sup_edif_total, pisos_maximos=pisos_maximos,
         porcentaje_emprendimiento=porcentaje_emprendimiento,
@@ -803,7 +811,7 @@ def guardar_catastro(exp_id):
             sup_edif_m2, edif_frente_lado, edif_antes_revision, usd_m2_edif,
             valor_dolar,
             total_usd_terreno, total_usd_edif, total_usd, propuesta, propuesta_moneda, monto, monto_moneda,
-            denuncia, gmaps_zona, gmaps_frente, otro_link,
+            denuncia, gmaps_zona, gmaps_frente, otro_link, departamento,
             terreno_total, fot, fos, sup_edif_total, pisos_maximos,
             porcentaje_emprendimiento, costo_usd_m2_emprendimiento, emprendimiento,
             observaciones, latitud, longitud
@@ -817,7 +825,7 @@ def guardar_catastro(exp_id):
             %s, %s, %s, %s,
             %s,
             %s, %s, %s, %s, %s, %s, %s,
-            %s, %s, %s, %s,
+            %s, %s, %s, %s, %s,
             %s, %s, %s, %s, %s,
             %s, %s, %s,
             %s, %s, %s
@@ -832,7 +840,7 @@ def guardar_catastro(exp_id):
         c['sup_edif_m2'], c['edif_frente_lado'], c['edif_antes_revision'], c['usd_m2_edif'],
         c['valor_dolar'],
         c['total_usd_terreno'], c['total_usd_edif'], c['total_usd'], c['propuesta'], c['propuesta_moneda'], c['monto'], c['monto_moneda'],
-        c['denuncia'], c['gmaps_zona'], c['gmaps_frente'], c['otro_link'],
+        c['denuncia'], c['gmaps_zona'], c['gmaps_frente'], c['otro_link'], c['departamento'],
         c['terreno_total'], c['fot'], c['fos'], c['sup_edif_total'], c['pisos_maximos'],
         c['porcentaje_emprendimiento'], c['costo_usd_m2_emprendimiento'], c['emprendimiento'],
         c['observaciones'], c['latitud'], c['longitud'],
@@ -961,7 +969,7 @@ def guardar_editar_catastro(cat_id):
             valor_dolar=%s,
             total_usd_terreno=%s, total_usd_edif=%s, total_usd=%s,
             propuesta=%s, propuesta_moneda=%s, monto=%s, monto_moneda=%s,
-            denuncia=%s, gmaps_zona=%s, gmaps_frente=%s, otro_link=%s,
+            denuncia=%s, gmaps_zona=%s, gmaps_frente=%s, otro_link=%s, departamento=%s,
             terreno_total=%s, fot=%s, fos=%s, sup_edif_total=%s, pisos_maximos=%s,
             porcentaje_emprendimiento=%s, costo_usd_m2_emprendimiento=%s, emprendimiento=%s,
             observaciones=%s, latitud=%s, longitud=%s, editado_por=%s
@@ -976,7 +984,7 @@ def guardar_editar_catastro(cat_id):
         c['valor_dolar'],
         c['total_usd_terreno'], c['total_usd_edif'], c['total_usd'],
         c['propuesta'], c['propuesta_moneda'], c['monto'], c['monto_moneda'],
-        c['denuncia'], c['gmaps_zona'], c['gmaps_frente'], c['otro_link'],
+        c['denuncia'], c['gmaps_zona'], c['gmaps_frente'], c['otro_link'], c['departamento'],
         c['terreno_total'], c['fot'], c['fos'], c['sup_edif_total'], c['pisos_maximos'],
         c['porcentaje_emprendimiento'], c['costo_usd_m2_emprendimiento'], c['emprendimiento'],
         c['observaciones'], c['latitud'], c['longitud'], usuario_actual,
@@ -1052,7 +1060,7 @@ def guardar_reconsideracion(cat_id):
             sup_edif_m2, edif_frente_lado, edif_antes_revision, usd_m2_edif,
             valor_dolar,
             total_usd_terreno, total_usd_edif, total_usd, propuesta, propuesta_moneda, monto, monto_moneda,
-            denuncia, gmaps_zona, gmaps_frente, otro_link,
+            denuncia, gmaps_zona, gmaps_frente, otro_link, departamento,
             terreno_total, fot, fos, sup_edif_total, pisos_maximos,
             porcentaje_emprendimiento, costo_usd_m2_emprendimiento, emprendimiento,
             observaciones, latitud, longitud, editado_por, es_reconsideracion
@@ -1066,7 +1074,7 @@ def guardar_reconsideracion(cat_id):
             %s, %s, %s, %s,
             %s,
             %s, %s, %s, %s, %s, %s, %s,
-            %s, %s, %s, %s,
+            %s, %s, %s, %s, %s,
             %s, %s, %s, %s, %s,
             %s, %s, %s,
             %s, %s, %s, %s, TRUE
@@ -1081,7 +1089,7 @@ def guardar_reconsideracion(cat_id):
         c['sup_edif_m2'], c['edif_frente_lado'], c['edif_antes_revision'], c['usd_m2_edif'],
         c['valor_dolar'],
         c['total_usd_terreno'], c['total_usd_edif'], c['total_usd'], c['propuesta'], c['propuesta_moneda'], c['monto'], c['monto_moneda'],
-        c['denuncia'], c['gmaps_zona'], c['gmaps_frente'], c['otro_link'],
+        c['denuncia'], c['gmaps_zona'], c['gmaps_frente'], c['otro_link'], c['departamento'],
         c['terreno_total'], c['fot'], c['fos'], c['sup_edif_total'], c['pisos_maximos'],
         c['porcentaje_emprendimiento'], c['costo_usd_m2_emprendimiento'], c['emprendimiento'],
         c['observaciones'], c['latitud'], c['longitud'], usuario_actual

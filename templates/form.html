@@ -128,6 +128,28 @@
                                 value="{{ datos.catastro if datos else '' }}" {% if not readonly %}required{% endif %} {% if readonly %}readonly{% endif %}>
                         </div>
                         <div class="form-group">
+                            <label>Departamento</label>
+                            {% if readonly %}
+                            <input type="text" value="{{ datos.departamento if datos and datos.departamento else '—' }}" readonly>
+                            {% else %}
+                            {% set deptos = ['Anta','Cachi','Cafayate','Capital','Cerrillos','Chicoana','General Güemes','General José de San Martín','Guachipas','Iruya','La Caldera','La Candelaria','La Poma','La Viña','Los Andes','Metán','Molinos','Orán','Rivadavia','Rosario de la Frontera','Rosario de Lerma','San Carlos','Santa Victoria'] %}
+                            {% set dep_actual = datos.departamento if datos and datos.departamento else '' %}
+                            {% set es_otro = dep_actual and dep_actual not in deptos %}
+                            <select name="departamento_sel" id="departamento_sel" class="form-select"
+                                onchange="toggleDepto(this.value)">
+                                <option value="">Seleccionar...</option>
+                                {% for d in deptos %}
+                                <option value="{{ d }}" {% if dep_actual == d %}selected{% endif %}>{{ d }}</option>
+                                {% endfor %}
+                                <option value="Otros" {% if es_otro %}selected{% endif %}>Otros</option>
+                            </select>
+                            <input type="text" name="departamento_otro" id="departamento_otro"
+                                placeholder="Especificar departamento / provincia..."
+                                value="{{ dep_actual if es_otro else '' }}"
+                                style="margin-top:6px; display:{{ 'block' if es_otro else 'none' }};">
+                            {% endif %}
+                        </div>
+                        <div class="form-group">
                             <label>Tipo de Catastro</label>
                             <select name="tipo_catastro" id="tipo_catastro" class="form-select"
                                 onchange="aplicarModoTipoCatastro()" {% if readonly %}disabled{% endif %}>
@@ -510,6 +532,13 @@
 
     <script>
         var pendienteGuardar = false;
+
+        function toggleDepto(val) {
+            var otro = document.getElementById('departamento_otro');
+            if (!otro) return;
+            otro.style.display = val === 'Otros' ? 'block' : 'none';
+            if (val !== 'Otros') otro.value = '';
+        }
 
         function esRural() {
             var sel = document.getElementById('tipo_catastro');
