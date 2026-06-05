@@ -555,8 +555,9 @@ def index():
         conditions.append('''(
             c.catastro ILIKE %s OR e.expediente ILIKE %s OR e.caratula ILIKE %s
             OR c.direccion ILIKE %s OR c.denuncia ILIKE %s
+            OR CAST(c.numero_vr AS TEXT) ILIKE %s
         )''')
-        params.extend([f'%{q}%'] * 5)
+        params.extend([f'%{q}%'] * 6)
     if desde:
         conditions.append('c.fecha >= %s')
         params.append(desde)
