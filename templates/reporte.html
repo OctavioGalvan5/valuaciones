@@ -448,25 +448,6 @@
         </div>
         {% endfor %}
 
-        <!-- Total general -->
-        <div class="reporte-total-bar">
-            <span class="label">Total General</span>
-            <div class="totals">
-                {% if total_usd %}
-                <div class="total-item">
-                    <span class="t-lbl">Propuesta inmuebles</span>
-                    <span class="t-val">U$S {{ total_usd|usd }}</span>
-                </div>
-                {% endif %}
-                {% if total_pesos %}
-                <div class="total-item">
-                    <span class="t-lbl">Automotores</span>
-                    <span class="t-val">$ {{ total_pesos|pesos }}</span>
-                </div>
-                {% endif %}
-            </div>
-        </div>
-
         {% endif %}
 
     </div>

@@ -107,7 +107,6 @@
                     <table id="tabla-valuaciones">
                         <thead>
                             <tr>
-                                <th>VR(s)</th>
                                 <th>Expediente</th>
                                 <th>Carátula</th>
                                 <th>Catastros</th>
@@ -119,9 +118,6 @@
                         <tbody>
                             {% for e in expedientes %}
                             <tr {% if not e.activa %}style="opacity:0.55;"{% endif %}>
-                                <td class="number" style="font-size:0.82rem; color:#6b7280;">
-                                    {{ e.vr_numeros or '—' }}
-                                </td>
                                 <td>
                                     <a href="{{ url_for('expediente_detail', exp_id=e.id) }}" class="link-expediente">
                                         {{ e.expediente or '—' }}

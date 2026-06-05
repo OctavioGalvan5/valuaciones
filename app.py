@@ -1924,16 +1924,6 @@ def reporte_excel():
         ws.row_dimensions[row].height = 18
         row += 2
 
-    if grupos:
-        ws.merge_cells(f'A{row}:D{row}')
-        ws.cell(row=row, column=1, value='TOTAL GENERAL').fill = fill_total
-        ws.cell(row=row, column=1).font = font_total
-        ws.cell(row=row, column=1).alignment = Alignment(horizontal='right', vertical='center')
-        for ci, (val, fmt) in enumerate([(total_usd, '#,##0.00'), (total_pesos, '#,##0')], 5):
-            cell = ws.cell(row=row, column=ci, value=val)
-            cell.fill = fill_total; cell.font = font_total
-            cell.alignment = c_rgt; cell.number_format = fmt
-        ws.row_dimensions[row].height = 24
 
     for ci, w in enumerate([8, 20, 14, 32, 16, 16, 18, 10], 1):
         ws.column_dimensions[get_column_letter(ci)].width = w
@@ -2089,13 +2079,7 @@ def reporte_pdf():
             story.append(Paragraph('Subtotal: ' + ('  |  '.join(sub_parts) if sub_parts else '—'), s_stot))
             story.append(HRFlowable(width='100%', thickness=0.5, color=gray_ln, spaceAfter=2))
 
-        grand = []
-        if total_usd:
-            grand.append(f"U$S {_ar(total_usd)}")
-        if total_pesos:
-            grand.append(f"$ {_ar_p(total_pesos)}")
-        story.append(Paragraph(
-            f"<b>TOTAL GENERAL: {'  +  '.join(grand) if grand else '—'}</b>", s_tot))
+
 
     doc.build(story)
     buf.seek(0)
