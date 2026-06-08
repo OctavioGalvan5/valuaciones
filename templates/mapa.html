@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mapa de Catastros — Sistema de Valuaciones</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+        body { overflow: hidden; }
+        #map {
+            height: calc(100vh - 64px);
+            width: 100%;
+        }
+        .leaflet-popup-content {
+            font-family: inherit;
+            min-width: 210px;
+        }
+        .popup-title {
+            font-weight: 700;
+            font-size: 0.95rem;
+            margin-bottom: 4px;
+            color: #1e3a5f;
+        }
+        .popup-row {
+            font-size: 0.82rem;
+            color: #4b5563;
+            margin-bottom: 2px;
+        }
+        .popup-row span { font-weight: 600; color: #111827; }
+        .popup-btn {
+            display: inline-block;
+            margin-top: 8px;
+            padding: 4px 12px;
+            background: #1e3a5f;
+            color: #fff !important;
+            border-radius: 5px;
+            font-size: 0.8rem;
+            text-decoration: none;
+            font-weight: 600;
+        }
+        .popup-btn:hover { background: #16304f; }
+
+        /* Buscadores flotantes */
+        #search-box {
+            position: absolute;
+            top: 14px;
+            right: 14px;
+            z-index: 1000;
+            width: 300px;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+        #search-input, #addr-input {
+            width: 100%;
+            padding: 9px 14px;
+            border: 1px solid #cbd5e1;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+            outline: none;
+            box-sizing: border-box;
+            background: #fff;
+        }
+        #search-input:focus { border-color: #1e3a5f; }
+        #addr-input:focus { border-color: #059669; }
+        #addr-input { border-left: 3px solid #059669; }
+        #search-results {
+            background: #fff;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            margin-top: -2px;
+            max-height: 260px;
+            overflow-y: auto;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+            display: none;
+        }
+        #addr-results {
+            background: #fff;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            margin-top: -2px;
+            max-height: 200px;
+            overflow-y: auto;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+            display: none;
+        }
+        .search-item {
+            padding: 9px 14px;
+            cursor: pointer;
+            border-bottom: 1px solid #f1f5f9;
+            font-size: 0.85rem;
+        }
+        .search-item:last-child { border-bottom: none; }
+        .search-item:hover { background: #f1f5f9; }
+        .search-item-title { font-weight: 600; color: #1e3a5f; }
+        .search-item-sub { color: #6b7280; font-size: 0.78rem; margin-top: 1px; }
+        .addr-item {
+            padding: 9px 14px;
+            cursor: pointer;
+            border-bottom: 1px solid #f1f5f9;
+            font-size: 0.84rem;
+            color: #374151;
+        }
+        .addr-item:last-child { border-bottom: none; }
+        .addr-item:hover { background: #f0fdf4; }
+        .search-empty {
+            padding: 12px 14px;
+            color: #9ca3af;
+            font-size: 0.85rem;
+            text-align: center;
+        }
+
+        .map-counter {
+            position: absolute;
+            bottom: 30px;
+            left: 12px;
+            z-index: 1000;
+            background: rgba(255,255,255,0.92);
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            padding: 6px 12px;
+            font-size: 0.82rem;
+            color: #374151;
+            pointer-events: none;
+        }
+    </style>
+</head>
+
+<body>
+
+    <header class="app-header">
+        <div class="header-brand">
+            <a href="{{ url_for('index') }}">
+                <img src="{{ url_for('static', filename='logo.svg') }}" alt="Caja Abogados" class="header-logo">
+            </a>
+            <span class="header-divider"></span>
+            <span class="header-title">Mapa de Catastros</span>
+        </div>
+        <div class="header-stats">
+            <div class="stat-badge">
+                <span class="header-user-icon">&#9679;</span> {{ usuario }}
+            </div>
+            <a href="{{ url_for('index') }}" class="btn-logout">← Volver</a>
+        </div>
+    </header>
+
+    <div style="position:relative;">
+        <div id="map"></div>
+
+        <!-- Buscadores flotantes -->
+        <div id="search-box">
+            <input id="search-input" type="text" placeholder="🔍 Buscar expediente, carátula, catastro…" autocomplete="off">
+            <div id="search-results"></div>
+            <input id="addr-input" type="text" placeholder="📍 Buscar dirección en el mapa…" autocomplete="off">
+            <div id="addr-results"></div>
+        </div>
+
+        <div class="map-counter" id="counter"></div>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script>
+        var puntos = {{ puntos_json | safe }};
+
+        var map = L.map('map').setView([-24.79, -65.41], 13);
+
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap',
+            maxZoom: 19
+        }).addTo(map);
+
+        var icon = L.divIcon({
+            className: '',
+            html: '<div style="width:14px;height:14px;background:#1e3a5f;border:2px solid #fff;border-radius:50%;box-shadow:0 1px 4px rgba(0,0,0,0.4);"></div>',
+            iconSize: [14, 14],
+            iconAnchor: [7, 7],
+            popupAnchor: [0, -10]
+        });
+
+        var iconHighlight = L.divIcon({
+            className: '',
+            html: '<div style="width:18px;height:18px;background:#dc2626;border:2px solid #fff;border-radius:50%;box-shadow:0 1px 6px rgba(0,0,0,0.5);"></div>',
+            iconSize: [18, 18],
+            iconAnchor: [9, 9],
+            popupAnchor: [0, -12]
+        });
+
+        var markers = [];
+        var bounds = [];
+
+        puntos.forEach(function(p, i) {
+            var marker = L.marker([p.lat, p.lng], {icon: icon}).addTo(map);
+            var vr = p.numero_vr ? 'VR #' + p.numero_vr + ' — ' : '';
+            marker.bindPopup(
+                '<div class="popup-title">' + vr + p.expediente + '</div>' +
+                '<div class="popup-row">' + p.caratula + '</div>' +
+                (p.catastro !== '—' ? '<div class="popup-row"><span>Catastro:</span> ' + p.catastro + '</div>' : '') +
+                (p.tipo !== '—' ? '<div class="popup-row"><span>Tipo:</span> ' + p.tipo + '</div>' : '') +
+                (p.direccion !== '—' ? '<div class="popup-row"><span>Dir:</span> ' + p.direccion + '</div>' : '') +
+                '<a class="popup-btn" href="/ver/' + p.cat_id + '">Ver estimación →</a>'
+            );
+            markers.push(marker);
+            bounds.push([p.lat, p.lng]);
+        });
+
+        if (bounds.length > 0) {
+            map.fitBounds(bounds, {padding: [40, 40]});
+        }
+
+        document.getElementById('counter').textContent =
+            puntos.length + ' catastro' + (puntos.length !== 1 ? 's' : '') + ' en el mapa';
+
+        // --- Buscador ---
+        var input = document.getElementById('search-input');
+        var resultsBox = document.getElementById('search-results');
+        var lastHighlight = null;
+
+        function highlight(idx) {
+            if (lastHighlight !== null) {
+                markers[lastHighlight].setIcon(icon);
+            }
+            markers[idx].setIcon(iconHighlight);
+            lastHighlight = idx;
+            map.flyTo([puntos[idx].lat, puntos[idx].lng], 17, {duration: 0.8});
+            setTimeout(function() { markers[idx].openPopup(); }, 850);
+        }
+
+        input.addEventListener('input', function() {
+            var q = this.value.trim().toLowerCase();
+            resultsBox.innerHTML = '';
+            if (q.length < 2) { resultsBox.style.display = 'none'; return; }
+
+            var matches = [];
+            puntos.forEach(function(p, i) {
+                var texto = [p.expediente, p.caratula, p.catastro, p.direccion,
+                             p.tipo, p.numero_vr ? String(p.numero_vr) : ''].join(' ').toLowerCase();
+                if (texto.indexOf(q) !== -1) matches.push(i);
+            });
+
+            if (matches.length === 0) {
+                resultsBox.innerHTML = '<div class="search-empty">Sin resultados</div>';
+            } else {
+                matches.slice(0, 8).forEach(function(i) {
+                    var p = puntos[i];
+                    var div = document.createElement('div');
+                    div.className = 'search-item';
+                    var vr = p.numero_vr ? ' · VR #' + p.numero_vr : '';
+                    div.innerHTML =
+                        '<div class="search-item-title">' + p.expediente + vr + '</div>' +
+                        '<div class="search-item-sub">' + p.caratula +
+                        (p.direccion !== '—' ? ' — ' + p.direccion : '') + '</div>';
+                    div.addEventListener('click', function() {
+                        highlight(i);
+                        resultsBox.style.display = 'none';
+                        input.value = p.expediente + (p.numero_vr ? ' VR#' + p.numero_vr : '');
+                    });
+                    resultsBox.appendChild(div);
+                });
+            }
+            resultsBox.style.display = 'block';
+        });
+
+        // Cerrar resultados al clickear el mapa
+        map.on('click', function() {
+            resultsBox.style.display = 'none';
+            addrResults.style.display = 'none';
+        });
+        document.addEventListener('click', function(e) {
+            if (!document.getElementById('search-box').contains(e.target)) {
+                resultsBox.style.display = 'none';
+                addrResults.style.display = 'none';
+            }
+        });
+
+        // --- Buscador de direcciones (Nominatim) ---
+        var addrInput   = document.getElementById('addr-input');
+        var addrResults = document.getElementById('addr-results');
+        var addrMarker  = null;
+        var addrTimer   = null;
+
+        var addrIcon = L.divIcon({
+            className: '',
+            html: '<div style="width:16px;height:16px;background:#059669;border:2px solid #fff;border-radius:50%;box-shadow:0 1px 5px rgba(0,0,0,0.4);"></div>',
+            iconSize: [16, 16],
+            iconAnchor: [8, 8],
+            popupAnchor: [0, -12]
+        });
+
+        addrInput.addEventListener('input', function() {
+            clearTimeout(addrTimer);
+            var q = this.value.trim();
+            addrResults.innerHTML = '';
+            if (q.length < 3) { addrResults.style.display = 'none'; return; }
+
+            addrTimer = setTimeout(function() {
+                var url = 'https://apis.datos.gob.ar/georef/api/direcciones?direccion='
+                    + encodeURIComponent(q) + '&max=6';
+                fetch(url)
+                    .then(function(r) { return r.json(); })
+                    .then(function(data) {
+                        addrResults.innerHTML = '';
+                        var dirs = (data.direcciones || []).filter(function(d) {
+                            return d.ubicacion && d.ubicacion.lat;
+                        });
+                        if (!dirs.length) {
+                            addrResults.innerHTML = '<div class="search-empty">Sin resultados</div>';
+                        } else {
+                            dirs.forEach(function(item) {
+                                var div = document.createElement('div');
+                                div.className = 'addr-item';
+                                div.textContent = item.nomenclatura;
+                                div.addEventListener('click', function() {
+                                    var lat = item.ubicacion.lat;
+                                    var lng = item.ubicacion.lon;
+                                    if (addrMarker) map.removeLayer(addrMarker);
+                                    addrMarker = L.marker([lat, lng], {icon: addrIcon})
+                                        .addTo(map)
+                                        .bindPopup('<div style="font-size:0.85rem;">' + item.nomenclatura + '</div>')
+                                        .openPopup();
+                                    map.flyTo([lat, lng], 17, {duration: 0.9});
+                                    addrResults.style.display = 'none';
+                                    addrInput.value = item.nomenclatura;
+                                });
+                                addrResults.appendChild(div);
+                            });
+                        }
+                        addrResults.style.display = 'block';
+                    })
+                    .catch(function() {
+                        addrResults.innerHTML = '<div class="search-empty">Error al buscar</div>';
+                        addrResults.style.display = 'block';
+                    });
+            }, 400);
+        });
+    </script>
+
+</body>
+</html>

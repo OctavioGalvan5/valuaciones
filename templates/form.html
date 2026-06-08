@@ -334,21 +334,42 @@
                     <div class="form-grid">
                         <div class="form-group span-2">
                             <label>G-Maps Zona (Link)</label>
+                            {% if readonly and datos and datos.gmaps_zona %}
+                            <div style="display:flex; gap:8px; align-items:center;">
+                                <input type="url" name="gmaps_zona" id="gmaps_zona" value="{{ datos.gmaps_zona }}" readonly style="flex:1;">
+                                <a href="{{ datos.gmaps_zona }}" target="_blank" class="btn btn-sm btn-success" style="white-space:nowrap;">Abrir</a>
+                            </div>
+                            {% else %}
                             <input type="url" name="gmaps_zona" id="gmaps_zona"
                                 placeholder="https://www.google.com/maps/..."
                                 value="{{ datos.gmaps_zona if datos else '' }}" {% if readonly %}readonly{% endif %}>
+                            {% endif %}
                         </div>
                         <div class="form-group span-2">
                             <label>G-Maps Frente (Link)</label>
+                            {% if readonly and datos and datos.gmaps_frente %}
+                            <div style="display:flex; gap:8px; align-items:center;">
+                                <input type="url" name="gmaps_frente" id="gmaps_frente" value="{{ datos.gmaps_frente }}" readonly style="flex:1;">
+                                <a href="{{ datos.gmaps_frente }}" target="_blank" class="btn btn-sm btn-success" style="white-space:nowrap;">Abrir</a>
+                            </div>
+                            {% else %}
                             <input type="url" name="gmaps_frente" id="gmaps_frente"
                                 placeholder="https://www.google.com/maps/..."
                                 value="{{ datos.gmaps_frente if datos else '' }}" {% if readonly %}readonly{% endif %}>
+                            {% endif %}
                         </div>
                         <div class="form-group span-2">
                             <label>Otro Link</label>
+                            {% if readonly and datos and datos.otro_link %}
+                            <div style="display:flex; gap:8px; align-items:center;">
+                                <input type="url" name="otro_link" id="otro_link" value="{{ datos.otro_link }}" readonly style="flex:1;">
+                                <a href="{{ datos.otro_link }}" target="_blank" class="btn btn-sm btn-success" style="white-space:nowrap;">Abrir</a>
+                            </div>
+                            {% else %}
                             <input type="url" name="otro_link" id="otro_link"
                                 placeholder="https://..."
                                 value="{{ datos.otro_link if datos and datos.otro_link else '' }}" {% if readonly %}readonly{% endif %}>
+                            {% endif %}
                         </div>
                     </div>
 

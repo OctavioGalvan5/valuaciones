@@ -3,7 +3,10 @@
     "allow": [
       "Bash(python test_coords.py)",
       "Bash(python3 -c \":*)",
-      "Bash(git commit -m ' *)"
+      "Bash(git commit -m ' *)",
+      "Bash(python -c \"import reportlab; print\\('reportlab OK', reportlab.Version\\)\")",
+      "Bash(python -c \"import app; print\\('Sintaxis OK'\\)\")",
+      "Bash(python -c \"import app; print\\('OK'\\)\")"
     ],
     "deny": [],
     "ask": []

@@ -1774,6 +1774,47 @@ def _query_reporte(conn, desde, hasta, exp_q, usuario):
     return grupos, total_usd, total_pesos
 
 
+@app.route('/mapa')
+@login_required
+def mapa():
+    coord_re = re.compile(r'/@(-?\d+\.\d+),(-?\d+\.\d+),')
+    conn = get_db()
+    catastros = fetchall(conn, '''
+        SELECT c.id, c.catastro, c.tipo_catastro, c.direccion, c.numero_vr,
+               c.gmaps_zona, c.gmaps_frente,
+               e.id AS exp_id, e.expediente, e.caratula
+        FROM catastros c
+        JOIN expedientes e ON e.id = c.expediente_id
+        WHERE c.eliminado IS NOT TRUE AND e.activa = 1
+        ORDER BY c.id DESC
+    ''', [])
+    conn.close()
+
+    puntos = []
+    for c in catastros:
+        for link in [c['gmaps_zona'], c['gmaps_frente']]:
+            if not link:
+                continue
+            m = coord_re.search(link)
+            if m:
+                puntos.append({
+                    'lat':       float(m.group(1)),
+                    'lng':       float(m.group(2)),
+                    'catastro':  c['catastro'] or '—',
+                    'tipo':      c['tipo_catastro'] or '—',
+                    'direccion': c['direccion'] or '—',
+                    'numero_vr': c['numero_vr'],
+                    'expediente': c['expediente'] or '—',
+                    'caratula':  c['caratula'] or '—',
+                    'exp_id':    c['exp_id'],
+                    'cat_id':    c['id'],
+                })
+                break
+
+    import json as _json
+    return render_template('mapa.html', puntos_json=_json.dumps(puntos), usuario=session['usuario'])
+
+
 @app.route('/reporte')
 @login_required
 def reporte():
