@@ -24,7 +24,7 @@ from functools import wraps
 
 import psycopg2
 import psycopg2.extras
-from flask import Flask, render_template, request, redirect, url_for, jsonify, session, abort, Response, stream_with_context
+from flask import Flask, render_template, request, redirect, url_for, jsonify, session, abort, Response, stream_with_context, flash
 from minio import Minio
 from minio.error import S3Error
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -768,6 +768,21 @@ def crear_expediente():
     ''', (expediente_num, caratula, usuario_actual))
     conn.commit()
     conn.close()
+    return redirect(url_for('expediente_detail', exp_id=exp_id))
+
+
+@app.route('/expediente/<int:exp_id>/editar', methods=['POST'])
+@login_required
+def editar_expediente(exp_id):
+    expediente_num = request.form.get('expediente', '').strip()
+    caratula = request.form.get('caratula', '').strip()
+    conn = get_db()
+    execute(conn,
+        'UPDATE expedientes SET expediente = %s, caratula = %s WHERE id = %s',
+        (expediente_num, caratula, exp_id))
+    conn.commit()
+    conn.close()
+    flash('Expediente actualizado correctamente.', 'success')
     return redirect(url_for('expediente_detail', exp_id=exp_id))
 
 

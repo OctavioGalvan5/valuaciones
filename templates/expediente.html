@@ -44,6 +44,7 @@
                 <span>Datos del Expediente</span>
                 <div style="display:flex; gap:8px;">
                     {% if exp.activa %}
+                    <button type="button" class="btn btn-sm btn-edit" onclick="document.getElementById('modal-editar').style.display='flex'">Editar</button>
                     <a href="{{ url_for('nuevo_catastro', exp_id=exp.id) }}" class="btn btn-primary btn-sm">+ Agregar Catastro</a>
                     <a href="{{ url_for('nuevo_automotor', exp_id=exp.id) }}" class="btn btn-primary btn-sm" style="background:#059669;">+ Agregar Automotor</a>
                     <form method="POST" action="{{ url_for('desactivar', exp_id=exp.id) }}" style="display:inline"
@@ -210,6 +211,32 @@
         </div>
 
     </div>
+
+<!-- Modal editar expediente -->
+<div id="modal-editar" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.45); z-index:1000; align-items:center; justify-content:center;">
+    <div style="background:#fff; border-radius:10px; padding:28px 32px; width:100%; max-width:520px; box-shadow:0 8px 32px rgba(0,0,0,0.18);">
+        <h2 style="margin:0 0 20px; font-size:1.1rem; font-weight:700; color:#1e293b;">Editar Expediente</h2>
+        <form method="POST" action="{{ url_for('editar_expediente', exp_id=exp.id) }}">
+            <div class="form-grid">
+                <div class="form-group">
+                    <label>N° de Expediente <span style="color:#ef4444;">*</span></label>
+                    <input type="text" name="expediente" value="{{ exp.expediente or '' }}" required autofocus>
+                </div>
+                <div class="form-group">
+                    <label>Carátula <span style="color:#ef4444;">*</span></label>
+                    <input type="text" name="caratula" value="{{ exp.caratula or '' }}" required>
+                </div>
+            </div>
+            <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:24px; padding-top:16px; border-top:1px solid #e5e7eb;">
+                <button type="button" onclick="document.getElementById('modal-editar').style.display='none'"
+                    style="padding:8px 18px; border:1px solid #d1d5db; border-radius:6px; font-size:0.85rem; font-weight:500; color:#4b5563; background:#fff; cursor:pointer;">
+                    Cancelar
+                </button>
+                <button type="submit" class="btn btn-primary">Guardar cambios</button>
+            </div>
+        </form>
+    </div>
+</div>
 
 <script>
 function aplicarColapsado(tablaId) {
