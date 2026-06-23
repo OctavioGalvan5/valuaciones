@@ -5,9 +5,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>
-        {% if viendo %}Ver VR #{{ viendo.id }}
-        {% elif editando %}Editar VR #{{ editando.id }}
-        {% elif reconsiderando %}Reconsiderar VR #{{ reconsiderando.id }}
+        {% if viendo %}Ver VR #{{ viendo.numero_vr or viendo.id }}
+        {% elif editando %}Editar VR #{{ editando.numero_vr or editando.id }}
+        {% elif reconsiderando %}Reconsiderar VR #{{ reconsiderando.numero_vr or reconsiderando.id }}
         {% else %}Nuevo Catastro &mdash; Exp. {{ expediente_obj.expediente }}
         {% endif %} — Sistema de Valuaciones
     </title>
@@ -24,9 +24,9 @@
             </a>
             <span class="header-divider"></span>
             <span class="header-title">
-                {% if viendo %}VR #{{ viendo.id }}
-                {% elif editando %}Editar VR #{{ editando.id }}
-                {% elif reconsiderando %}Reconsideración #{{ reconsiderando.id }}
+                {% if viendo %}VR #{{ viendo.numero_vr or viendo.id }}
+                {% elif editando %}Editar VR #{{ editando.numero_vr or editando.id }}
+                {% elif reconsiderando %}Reconsideración #{{ reconsiderando.numero_vr or reconsiderando.id }}
                 {% else %}Nuevo Catastro
                 {% endif %}
             </span>
@@ -61,9 +61,9 @@
         <!-- Formulario -->
         <div class="card">
             <div class="card-header">
-                {% if viendo %}Ver Valuación &mdash; VR #{{ viendo.id }}
-                {% elif editando %}Editar Valuación &mdash; VR #{{ editando.id }}
-                {% elif reconsiderando %}Reconsiderar Valuación &mdash; VR #{{ reconsiderando.id }}
+                {% if viendo %}Ver Valuación &mdash; VR #{{ viendo.numero_vr or viendo.id }}
+                {% elif editando %}Editar Valuación &mdash; VR #{{ editando.numero_vr or editando.id }}
+                {% elif reconsiderando %}Reconsiderar Valuación &mdash; VR #{{ reconsiderando.numero_vr or reconsiderando.id }}
                 {% else %}Nuevo Catastro &mdash; Exp. {{ expediente_obj.expediente }}
                 {% endif %}
             </div>
