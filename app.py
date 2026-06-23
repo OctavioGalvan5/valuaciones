@@ -579,11 +579,13 @@ def index():
 
     conn = get_db()
 
+    where_clause = f'WHERE {where}' if where.strip() else ''
+
     count_sql = f'''
         SELECT COUNT(DISTINCT e.id)
         FROM expedientes e
         {join_type} catastros c ON c.expediente_id = e.id
-        WHERE {where}
+        {where_clause}
     '''
     total = fetchscalar(conn, count_sql, params)
 
@@ -597,7 +599,7 @@ def index():
                STRING_AGG(CAST(c.numero_vr AS TEXT), ', ' ORDER BY c.id) AS vr_numeros
         FROM expedientes e
         {join_type} catastros c ON c.expediente_id = e.id
-        WHERE {where}
+        {where_clause}
         GROUP BY e.id, e.expediente, e.caratula, e.creado_por, e.fecha_registro, e.activa
         ORDER BY e.id DESC
         LIMIT %s OFFSET %s
@@ -1006,6 +1008,25 @@ def guardar_editar_catastro(cat_id):
         c['observaciones'], c['latitud'], c['longitud'], usuario_actual,
         cat_id,
     ))
+    for file in request.files.getlist('archivos'):
+        if not file or not file.filename:
+            continue
+        ext = os.path.splitext(file.filename)[1].lower()
+        if ext not in ALLOWED_EXTENSIONS:
+            continue
+        objeto_minio = f'{cat_id}/{uuid.uuid4().hex}{ext}'
+        file_data = file.read()
+        tamanio = len(file_data)
+        try:
+            minio_client.put_object(MINIO_BUCKET, objeto_minio, BytesIO(file_data), tamanio,
+                                    content_type=file.content_type or 'application/octet-stream')
+            execute(conn, '''
+                INSERT INTO archivos (catastro_id, nombre_original, objeto_minio, tipo, tamanio, subido_por)
+                VALUES (%s, %s, %s, %s, %s, %s)
+            ''', (cat_id, file.filename, objeto_minio, ext, tamanio, usuario_actual))
+        except S3Error as e:
+            print(f'[MinIO] Error al subir archivo: {e}')
+
     conn.commit()
     conn.close()
     return redirect(url_for('expediente_detail', exp_id=exp_id))
