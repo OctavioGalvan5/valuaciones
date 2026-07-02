@@ -333,8 +333,14 @@
             </div>
             {% if total_usd %}
             <div class="summary-card usd">
-                <span class="s-label">Propuesta total (inmuebles)</span>
+                <span class="s-label">Propuesta total inmuebles (U$S)</span>
                 <span class="s-value">U$S {{ total_usd|usd }}</span>
+            </div>
+            {% endif %}
+            {% if total_ars %}
+            <div class="summary-card usd">
+                <span class="s-label">Propuesta total inmuebles ($)</span>
+                <span class="s-value">$ {{ total_ars|pesos }}</span>
             </div>
             {% endif %}
             {% if total_pesos %}
@@ -357,6 +363,9 @@
                 <div class="subtotal-badges">
                     {% if g.subtotal_usd %}
                     <span class="badge-usd">U$S {{ g.subtotal_usd|usd }}</span>
+                    {% endif %}
+                    {% if g.subtotal_ars %}
+                    <span class="badge-usd">$ {{ g.subtotal_ars|pesos }}</span>
                     {% endif %}
                     {% if g.subtotal_pesos %}
                     <span class="badge-pesos">$ {{ g.subtotal_pesos|pesos }}</span>

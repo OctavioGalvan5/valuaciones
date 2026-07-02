@@ -1746,7 +1746,7 @@ def _query_reporte(conn, desde, hasta, exp_q, usuario):
 
     catastros = fetchall(conn, f'''
         SELECT c.id, c.numero_vr, c.catastro, c.tipo_catastro, c.direccion,
-               c.total_usd, c.propuesta, c.monto, c.fecha, c.fecha_registro,
+               c.total_usd, c.propuesta, c.propuesta_moneda, c.monto, c.fecha, c.fecha_registro,
                c.es_reconsideracion, c.editado_por,
                e.id AS exp_id, e.expediente, e.caratula, e.creado_por AS exp_creado_por
         FROM catastros c
@@ -1783,7 +1783,7 @@ def _query_reporte(conn, desde, hasta, exp_q, usuario):
                              'catastros': [], 'automotores': []}
         exp_dict[eid]['automotores'].append(dict(a))
 
-    grupos, total_usd, total_pesos = [], 0, 0
+    grupos, total_usd, total_ars, total_pesos = [], 0, 0, 0
     for eid in sorted(exp_dict.keys(), reverse=True):
         g = exp_dict[eid]
         # Para el subtotal tomamos solo el registro más reciente por catastro/vehículo
@@ -1793,7 +1793,10 @@ def _query_reporte(conn, desde, hasta, exp_q, usuario):
             key = c['catastro'] or str(c['id'])
             if key not in efectivos_cat or c['id'] > efectivos_cat[key]['id']:
                 efectivos_cat[key] = c
-        sub_usd = sum((c['propuesta'] or 0) for c in efectivos_cat.values())
+        sub_usd = sum((c['propuesta'] or 0) for c in efectivos_cat.values()
+                      if (c.get('propuesta_moneda') or 'USD') == 'USD')
+        sub_ars = sum((c['propuesta'] or 0) for c in efectivos_cat.values()
+                      if c.get('propuesta_moneda') == 'ARS')
 
         efectivos_aut = {}
         for a in g['automotores']:
@@ -1802,12 +1805,14 @@ def _query_reporte(conn, desde, hasta, exp_q, usuario):
                 efectivos_aut[key] = a
         sub_pesos = sum((a['valor'] or 0) for a in efectivos_aut.values())
         g['subtotal_usd']   = sub_usd
+        g['subtotal_ars']   = sub_ars
         g['subtotal_pesos'] = sub_pesos
         total_usd   += sub_usd
+        total_ars   += sub_ars
         total_pesos += sub_pesos
         grupos.append(g)
 
-    return grupos, total_usd, total_pesos
+    return grupos, total_usd, total_ars, total_pesos
 
 
 @app.route('/mapa')
@@ -1861,14 +1866,14 @@ def reporte():
     filtrado = bool(desde or hasta or exp_q or usuario)
 
     conn = get_db()
-    grupos, total_usd, total_pesos = ([], 0, 0)
+    grupos, total_usd, total_ars, total_pesos = ([], 0, 0, 0)
     if filtrado:
-        grupos, total_usd, total_pesos = _query_reporte(conn, desde, hasta, exp_q, usuario)
+        grupos, total_usd, total_ars, total_pesos = _query_reporte(conn, desde, hasta, exp_q, usuario)
     usuarios_lista = [u['username'] for u in fetchall(conn, 'SELECT username FROM usuarios ORDER BY username')]
     conn.close()
 
     return render_template('reporte.html',
-                           grupos=grupos, total_usd=total_usd, total_pesos=total_pesos,
+                           grupos=grupos, total_usd=total_usd, total_ars=total_ars, total_pesos=total_pesos,
                            desde=desde, hasta=hasta, exp_q=exp_q, usuario=usuario,
                            filtrado=filtrado, usuarios_lista=usuarios_lista,
                            usuario_actual=session['usuario'])
@@ -1887,7 +1892,7 @@ def reporte_excel():
     usuario = request.args.get('usuario', '').strip()
 
     conn = get_db()
-    grupos, total_usd, total_pesos = _query_reporte(conn, desde, hasta, exp_q, usuario)
+    grupos, total_usd, total_ars, total_pesos = _query_reporte(conn, desde, hasta, exp_q, usuario)
     conn.close()
 
     wb = Workbook()
@@ -2030,7 +2035,7 @@ def reporte_pdf():
     usuario = request.args.get('usuario', '').strip()
 
     conn = get_db()
-    grupos, total_usd, total_pesos = _query_reporte(conn, desde, hasta, exp_q, usuario)
+    grupos, total_usd, total_ars, total_pesos = _query_reporte(conn, desde, hasta, exp_q, usuario)
     conn.close()
 
     buf = BytesIO()
