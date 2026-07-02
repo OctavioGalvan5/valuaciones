@@ -549,7 +549,7 @@ def index():
     ver_eliminados  = request.args.get('ver_eliminados', '') == '1' and session.get('rol') == 'admin'
     page            = max(1, int(request.args.get('page', 1) or 1))
 
-    conditions = [] if ver_eliminados else ['e.activa = 1']
+    conditions = ['e.activa = 0'] if ver_eliminados else ['e.activa = 1']
     params = []
     if q:
         conditions.append('''(
