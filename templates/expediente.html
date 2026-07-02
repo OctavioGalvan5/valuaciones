@@ -160,7 +160,7 @@
                                 <th>Tipo</th>
                                 <th>Dirección</th>
                                 <th>Fecha</th>
-                                <th>Propuesta U$S</th>
+                                <th>Propuesta</th>
                                 <th>Acciones</th>
                             </tr>
                         </thead>
@@ -181,7 +181,10 @@
                                 <td>{{ c.direccion or '—' }}</td>
                                 <td>{{ c.fecha.split('-')|reverse|join('/') if c.fecha else '—' }}</td>
                                 <td class="number propuesta">
-                                    {{ "{:,.0f}".format(c.propuesta).replace(',', '.') if c.propuesta else '—' }}
+                                    {% if c.propuesta %}
+                                    {% if c.propuesta_moneda == 'ARS' %}${% else %}U$S{% endif %}
+                                    {{ "{:,.0f}".format(c.propuesta).replace(',', '.') }}
+                                    {% else %}—{% endif %}
                                 </td>
                                 <td>
                                     <div class="actions-cell">
