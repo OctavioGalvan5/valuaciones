@@ -557,6 +557,7 @@
     <script>
     var hojaInstance = null;
     var hojaVisible = true;
+    var hojaSeleccion = null;
 
     function toggleHoja() {
         var sec = document.getElementById('hoja-section');
@@ -564,6 +565,25 @@
         hojaVisible = !hojaVisible;
         sec.style.display = hojaVisible ? '' : 'none';
         icon.innerHTML = hojaVisible ? '&#9660;' : '&#9654;';
+    }
+
+    function colLetra(n) {
+        var s = '';
+        for (n++; n > 0; n = Math.floor((n - 1) / 26))
+            s = String.fromCharCode(65 + (n - 1) % 26) + s;
+        return s;
+    }
+
+    function aplicarEstilo(prop, val) {
+        if (!hojaInstance || !hojaSeleccion) return;
+        var s = hojaSeleccion;
+        var x1 = Math.min(s[0], s[2]), x2 = Math.max(s[0], s[2]);
+        var y1 = Math.min(s[1], s[3]), y2 = Math.max(s[1], s[3]);
+        var o = {};
+        for (var r = y1; r <= y2; r++)
+            for (var c = x1; c <= x2; c++)
+                o[colLetra(c) + (r + 1)] = prop + ':' + val;
+        hojaInstance.setStyle(o);
     }
 
     function iniciarHoja(datos) {
@@ -580,17 +600,18 @@
             allowInsertColumn: true,
             allowDeleteRow: true,
             allowDeleteColumn: true,
+            onselection: function(el, x1, y1, x2, y2) { hojaSeleccion = [x1, y1, x2, y2]; },
             toolbar: [
-                { type: 'i', content: 'format_bold',          tooltip: 'Negrita',          onclick: function(el,obj){ obj.setStyle(obj.getSelected(),'font-weight','bold'); }},
-                { type: 'i', content: 'format_italic',        tooltip: 'Cursiva',          onclick: function(el,obj){ obj.setStyle(obj.getSelected(),'font-style','italic'); }},
-                { type: 'i', content: 'format_underline',     tooltip: 'Subrayado',        onclick: function(el,obj){ obj.setStyle(obj.getSelected(),'text-decoration','underline'); }},
+                { type: 'i', content: 'format_bold',         tooltip: 'Negrita',           onclick: function(){ aplicarEstilo('font-weight','bold'); }},
+                { type: 'i', content: 'format_italic',       tooltip: 'Cursiva',           onclick: function(){ aplicarEstilo('font-style','italic'); }},
+                { type: 'i', content: 'format_underline',    tooltip: 'Subrayado',         onclick: function(){ aplicarEstilo('text-decoration','underline'); }},
                 { type: 'divisor' },
-                { type: 'i', content: 'format_align_left',    tooltip: 'Alinear izquierda',onclick: function(el,obj){ obj.setStyle(obj.getSelected(),'text-align','left'); }},
-                { type: 'i', content: 'format_align_center',  tooltip: 'Centrar',          onclick: function(el,obj){ obj.setStyle(obj.getSelected(),'text-align','center'); }},
-                { type: 'i', content: 'format_align_right',   tooltip: 'Alinear derecha',  onclick: function(el,obj){ obj.setStyle(obj.getSelected(),'text-align','right'); }},
+                { type: 'i', content: 'format_align_left',   tooltip: 'Alinear izquierda', onclick: function(){ aplicarEstilo('text-align','left'); }},
+                { type: 'i', content: 'format_align_center', tooltip: 'Centrar',           onclick: function(){ aplicarEstilo('text-align','center'); }},
+                { type: 'i', content: 'format_align_right',  tooltip: 'Alinear derecha',   onclick: function(){ aplicarEstilo('text-align','right'); }},
                 { type: 'divisor' },
-                { type: 'color', content: 'format_color_text',  tooltip: 'Color de texto',  k: 'color' },
-                { type: 'color', content: 'format_color_fill',  tooltip: 'Color de fondo',  k: 'background-color' },
+                { type: 'color', content: 'format_color_text', tooltip: 'Color de texto',  k: 'color' },
+                { type: 'color', content: 'format_color_fill', tooltip: 'Color de fondo',  k: 'background-color' },
             ],
             contextMenu: function(obj, x, y, e) {
                 var items = [];
