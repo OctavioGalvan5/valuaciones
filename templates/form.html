@@ -12,6 +12,10 @@
         {% endif %} — Sistema de Valuaciones
     </title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    {% if viendo or editando %}
+    <link rel="stylesheet" href="{{ url_for('static', filename='jsuites.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='jspreadsheet.css') }}">
+    {% endif %}
 </head>
 
 <body>
@@ -526,6 +530,100 @@
             </div>
         </div>
     </div>
+
+    {% if viendo or editando %}
+    {% set cat_id = viendo.id if viendo else editando.id %}
+    <div class="container" style="margin-top:18px; max-width:100%;">
+        <div class="card">
+            <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;cursor:pointer;" onclick="toggleHoja()">
+                <span>Hoja de Cálculo</span>
+                <span id="hoja-toggle-icon" style="font-size:1.1rem;">&#9660;</span>
+            </div>
+            <div id="hoja-section" style="padding:16px;">
+                <div style="overflow-x:auto; width:100%;">
+                <div id="hoja-spreadsheet"></div>
+                </div>
+                <div style="margin-top:10px;display:flex;gap:10px;align-items:center;">
+                    <button class="btn btn-primary" onclick="guardarHoja()">Guardar hoja</button>
+                    <span id="hoja-status" style="font-size:0.85rem;color:#64748b;"></span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='jsuites.js') }}"></script>
+    <script src="{{ url_for('static', filename='jspreadsheet.js') }}"></script>
+    <script>
+    var hojaInstance = null;
+    var hojaVisible = true;
+
+    function toggleHoja() {
+        var sec = document.getElementById('hoja-section');
+        var icon = document.getElementById('hoja-toggle-icon');
+        hojaVisible = !hojaVisible;
+        sec.style.display = hojaVisible ? '' : 'none';
+        icon.innerHTML = hojaVisible ? '&#9660;' : '&#9654;';
+    }
+
+    function iniciarHoja(datos) {
+        var el = document.getElementById('hoja-spreadsheet');
+        el.innerHTML = '';
+        hojaInstance = jspreadsheet(el, {
+            data: datos.data,
+            columns: datos.columns,
+            minDimensions: [6, 12],
+            tableOverflow: true,
+            tableWidth: '1400px',
+            tableHeight: '600px',
+            allowInsertRow: true,
+            allowInsertColumn: true,
+            allowDeleteRow: true,
+            allowDeleteColumn: true,
+            toolbar: true,
+            contextMenu: function(obj, x, y, e) {
+                var items = [];
+                if (y !== null) {
+                    items.push({ title: 'Insertar fila arriba', onclick: function() { obj.insertRow(1, parseInt(y), true); } });
+                    items.push({ title: 'Insertar fila abajo', onclick: function() { obj.insertRow(1, parseInt(y)); } });
+                    items.push({ title: 'Eliminar fila', onclick: function() { obj.deleteRow(obj.getSelectedRows(true)); } });
+                    items.push({ type: 'line' });
+                }
+                if (x !== null) {
+                    items.push({ title: 'Insertar columna a la izquierda', onclick: function() { obj.insertColumn(1, parseInt(x), true); } });
+                    items.push({ title: 'Insertar columna a la derecha', onclick: function() { obj.insertColumn(1, parseInt(x)); } });
+                    items.push({ title: 'Eliminar columna', onclick: function() { obj.deleteColumn(obj.getSelectedColumns(true)); } });
+                    items.push({ type: 'line' });
+                }
+                items.push({ title: 'Copiar', shortcut: 'Ctrl + C', onclick: function() { obj.copy(true); } });
+                return items;
+            },
+        });
+    }
+
+    function guardarHoja() {
+        var status = document.getElementById('hoja-status');
+        if (!hojaInstance) return;
+        var datos = {
+            data: hojaInstance.getData(),
+            columns: hojaInstance.options.columns,
+        };
+        status.textContent = 'Guardando...';
+        fetch('/hoja_calculo/{{ cat_id }}', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ datos: datos })
+        })
+        .then(function(r) { return r.json(); })
+        .then(function() { status.textContent = 'Guardado ✓'; setTimeout(function(){ status.textContent=''; }, 3000); })
+        .catch(function() { status.textContent = 'Error al guardar'; });
+    }
+
+    fetch('/hoja_calculo/{{ cat_id }}')
+        .then(function(r) { return r.json(); })
+        .then(function(res) { iniciarHoja(res.datos); })
+        .catch(function() { iniciarHoja({ data: [], columns: [] }); });
+    </script>
+    {% endif %}
 
     <!-- Modal de imagen -->
     <div id="img-modal" class="img-modal-overlay" style="display:none;" onclick="cerrarImagen()">

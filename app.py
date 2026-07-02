@@ -5,6 +5,7 @@ load_dotenv()
 import re
 import math
 import uuid
+import json
 from io import BytesIO
 from datetime import datetime, timedelta, timezone
 
@@ -296,6 +297,17 @@ def init_db():
 
     # Departamento en catastros
     execute(conn, 'ALTER TABLE catastros ADD COLUMN IF NOT EXISTS departamento TEXT')
+
+    # ---- Hoja de cálculo por catastro ----
+    execute(conn, '''
+        CREATE TABLE IF NOT EXISTS hojas_calculo (
+            id                  SERIAL PRIMARY KEY,
+            catastro_id         INTEGER UNIQUE REFERENCES catastros(id),
+            datos               JSONB,
+            actualizado_por     TEXT,
+            fecha_actualizacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
 
     # ---- Tabla usuarios ----
     execute(conn, '''
@@ -1166,6 +1178,44 @@ def guardar_reconsideracion(cat_id):
     conn.commit()
     conn.close()
     return redirect(url_for('expediente_detail', exp_id=exp_id))
+
+
+# ---- Hoja de cálculo ----
+
+HOJA_COLS = 10
+HOJA_ROWS = 20
+
+@app.route('/hoja_calculo/<int:catastro_id>', methods=['GET'])
+@login_required
+def get_hoja_calculo(catastro_id):
+    conn = get_db()
+    hoja = fetchone(conn, 'SELECT datos FROM hojas_calculo WHERE catastro_id = %s', (catastro_id,))
+    conn.close()
+    if hoja and hoja['datos']:
+        return jsonify({'datos': hoja['datos']})
+    datos = {
+        'data': [[''] * HOJA_COLS for _ in range(HOJA_ROWS)],
+        'columns': [{'title': chr(65 + i), 'width': 130} for i in range(HOJA_COLS)],
+    }
+    return jsonify({'datos': datos})
+
+
+@app.route('/hoja_calculo/<int:catastro_id>', methods=['POST'])
+@login_required
+def save_hoja_calculo(catastro_id):
+    datos = request.get_json().get('datos')
+    conn = get_db()
+    execute(conn, '''
+        INSERT INTO hojas_calculo (catastro_id, datos, actualizado_por)
+        VALUES (%s, %s, %s)
+        ON CONFLICT (catastro_id) DO UPDATE SET
+            datos               = EXCLUDED.datos,
+            actualizado_por     = EXCLUDED.actualizado_por,
+            fecha_actualizacion = CURRENT_TIMESTAMP
+    ''', (catastro_id, json.dumps(datos), session['usuario']))
+    conn.commit()
+    conn.close()
+    return jsonify({'ok': True})
 
 
 # ---- Archivos (MinIO) ----
