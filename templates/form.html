@@ -757,7 +757,8 @@
                 return;
             }
 
-            var data = { catastro: catastro, gmaps_zona: gmapsZona, gmaps_frente: gmapsFrente };
+            var tipoCatastro = document.getElementById('tipo_catastro') ? document.getElementById('tipo_catastro').value : '';
+            var data = { catastro: catastro, gmaps_zona: gmapsZona, gmaps_frente: gmapsFrente, tipo_catastro: tipoCatastro };
             var editandoInput = document.getElementById('editando_id');
             if (editandoInput) data.exclude_id = parseInt(editandoInput.value);
 

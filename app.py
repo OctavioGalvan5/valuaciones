@@ -646,10 +646,14 @@ def expediente_detail(exp_id):
 @login_required
 def verificar_catastro():
     data = request.get_json()
-    catastro    = data.get('catastro', '').strip()
-    gmaps_zona  = data.get('gmaps_zona', '').strip()
-    gmaps_frente = data.get('gmaps_frente', '').strip()
-    exclude_id  = data.get('exclude_id')
+    catastro      = data.get('catastro', '').strip()
+    gmaps_zona    = data.get('gmaps_zona', '').strip()
+    gmaps_frente  = data.get('gmaps_frente', '').strip()
+    exclude_id    = data.get('exclude_id')
+    tipo_catastro = data.get('tipo_catastro', 'Urbano').strip()
+
+    radios = {'Rural': 2.0, 'Subrural': 1.0}
+    radio_km = radios.get(tipo_catastro, 0.5)
 
     alertas = []
     conn = get_db()
@@ -692,7 +696,7 @@ def verificar_catastro():
         registros = fetchall(conn, sql, params)
         for reg in registros:
             dist = haversine(lat, lon, reg['latitud'], reg['longitud'])
-            if dist < 0.5:
+            if dist < radio_km:
                 dist_metros = round(dist * 1000)
                 alertas.append({
                     'tipo': 'proximidad',
