@@ -1999,14 +1999,34 @@ def reporte_excel():
         ws.cell(row=row, column=1, value='SUBTOTAL').fill = fill_sub
         ws.cell(row=row, column=1).font = font_sub
         ws.cell(row=row, column=1).alignment = Alignment(horizontal='right', vertical='center')
-        for ci, (val, fmt) in enumerate([(g['subtotal_usd'], '#,##0.00'), (g['subtotal_pesos'], '#,##0')], 5):
+        sub_vals = [
+            (f"U$S {g['subtotal_usd']:,.0f}".replace(',', '.') if g['subtotal_usd'] else '—', '#,##0.00'),
+            (f"$ {g['subtotal_ars']:,.0f}".replace(',', '.') if g['subtotal_ars'] else '—', '#,##0.00'),
+            (f"$ {g['subtotal_pesos']:,.0f}".replace(',', '.') if g['subtotal_pesos'] else '—', '#,##0'),
+        ]
+        for ci, (val, fmt) in enumerate(sub_vals, 5):
             cell = ws.cell(row=row, column=ci, value=val)
             cell.fill = fill_sub; cell.font = font_sub
             cell.alignment = c_rgt; cell.border = brd
-            cell.number_format = fmt
         ws.row_dimensions[row].height = 18
         row += 2
 
+    # Fila de totales generales
+    row += 1
+    merge_write(row, 'TOTAL GENERAL', fill_total, font_total, Alignment(horizontal='center', vertical='center'))
+    ws.row_dimensions[row].height = 22
+    row += 1
+    total_vals = [
+        (f"U$S {total_usd:,.0f}".replace(',', '.') if total_usd else '—', 'Inmuebles (U$S)'),
+        (f"$ {total_ars:,.0f}".replace(',', '.') if total_ars else '—', 'Inmuebles ($)'),
+        (f"$ {total_pesos:,.0f}".replace(',', '.') if total_pesos else '—', 'Automotores ($)'),
+    ]
+    for ci, (val, label) in enumerate(total_vals, 3):
+        ws.cell(row=row, column=ci, value=label).font = Font(bold=True, size=9, color='475569')
+        ws.cell(row=row, column=ci).alignment = c_ctr
+        ws.cell(row=row+1, column=ci, value=val).font = Font(bold=True, size=11, color='0C4566')
+        ws.cell(row=row+1, column=ci).alignment = c_ctr
+    ws.row_dimensions[row+1].height = 20
 
     for ci, w in enumerate([8, 20, 14, 32, 16, 16, 18, 10], 1):
         ws.column_dimensions[get_column_letter(ci)].width = w
@@ -2113,17 +2133,19 @@ def reporte_pdf():
                 cat_rows = []
                 for c in g['catastros']:
                     rec = ' (R)' if c['es_reconsideracion'] else ''
+                    moneda = c.get('propuesta_moneda') or 'USD'
+                    prop_str = (f"U$S {_ar(c['propuesta'])}" if moneda == 'USD' else f"$ {_ar(c['propuesta'])}") if c['propuesta'] else '—'
                     cat_rows.append([
                         str(c['numero_vr'] or '—') + rec,
                         (c['catastro'] or '—'),
                         (c['tipo_catastro'] or '—'),
                         (c['direccion'] or '—')[:50],
                         f"U$S {_ar(c['total_usd'])}",
-                        f"U$S {_ar(c['propuesta'])}",
+                        prop_str,
                         to_ar(c['fecha_registro']).strftime('%d/%m/%y') if c['fecha_registro'] else '—',
                     ])
                 story.append(mk_table(
-                    ['VR #', 'Catastro', 'Tipo', 'Dirección', 'Total U$S', 'Propuesta U$S', 'Fecha Reg.'],
+                    ['VR #', 'Catastro', 'Tipo', 'Dirección', 'Total U$S', 'Propuesta', 'Fecha Reg.'],
                     cat_rows,
                     [1.8*cm, 3.5*cm, 2.5*cm, 8.5*cm, 3*cm, 3.2*cm, 2.5*cm],
                     brand2
@@ -2156,13 +2178,24 @@ def reporte_pdf():
 
             sub_parts = []
             if g['subtotal_usd']:
-                sub_parts.append(f"Inmuebles (propuesta): <b>U$S {_ar(g['subtotal_usd'])}</b>")
+                sub_parts.append(f"Inmuebles U$S: <b>U$S {_ar(g['subtotal_usd'])}</b>")
+            if g['subtotal_ars']:
+                sub_parts.append(f"Inmuebles $: <b>$ {_ar(g['subtotal_ars'])}</b>")
             if g['subtotal_pesos']:
                 sub_parts.append(f"Automotores: <b>$ {_ar_p(g['subtotal_pesos'])}</b>")
             story.append(Paragraph('Subtotal: ' + ('  |  '.join(sub_parts) if sub_parts else '—'), s_stot))
             story.append(HRFlowable(width='100%', thickness=0.5, color=gray_ln, spaceAfter=2))
 
-
+        # Totales generales
+        tot_parts = []
+        if total_usd:
+            tot_parts.append(f"Inmuebles U$S: <b>U$S {_ar(total_usd)}</b>")
+        if total_ars:
+            tot_parts.append(f"Inmuebles $: <b>$ {_ar(total_ars)}</b>")
+        if total_pesos:
+            tot_parts.append(f"Automotores: <b>$ {_ar_p(total_pesos)}</b>")
+        story.append(Spacer(1, 0.4*cm))
+        story.append(Paragraph('TOTAL GENERAL: ' + ('  |  '.join(tot_parts) if tot_parts else '—'), s_tot))
 
     doc.build(story)
     buf.seek(0)
