@@ -579,7 +579,18 @@
             allowInsertColumn: true,
             allowDeleteRow: true,
             allowDeleteColumn: true,
-            toolbar: true,
+            toolbar: [
+                { type: 'i', content: 'format_bold',          tooltip: 'Negrita',          onclick: function(el,obj){ obj.setStyle(obj.getSelected(),'font-weight','bold'); }},
+                { type: 'i', content: 'format_italic',        tooltip: 'Cursiva',          onclick: function(el,obj){ obj.setStyle(obj.getSelected(),'font-style','italic'); }},
+                { type: 'i', content: 'format_underline',     tooltip: 'Subrayado',        onclick: function(el,obj){ obj.setStyle(obj.getSelected(),'text-decoration','underline'); }},
+                { type: 'divisor' },
+                { type: 'i', content: 'format_align_left',    tooltip: 'Alinear izquierda',onclick: function(el,obj){ obj.setStyle(obj.getSelected(),'text-align','left'); }},
+                { type: 'i', content: 'format_align_center',  tooltip: 'Centrar',          onclick: function(el,obj){ obj.setStyle(obj.getSelected(),'text-align','center'); }},
+                { type: 'i', content: 'format_align_right',   tooltip: 'Alinear derecha',  onclick: function(el,obj){ obj.setStyle(obj.getSelected(),'text-align','right'); }},
+                { type: 'divisor' },
+                { type: 'color', content: 'format_color_text',  tooltip: 'Color de texto',  k: 'color' },
+                { type: 'color', content: 'format_color_fill',  tooltip: 'Color de fondo',  k: 'background-color' },
+            ],
             contextMenu: function(obj, x, y, e) {
                 var items = [];
                 if (y !== null) {
