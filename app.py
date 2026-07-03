@@ -1776,7 +1776,7 @@ def configurar_vr():
                            usuario=usuario_actual)
 
 
-def _query_reporte(conn, desde, hasta, exp_q, usuario):
+def _query_reporte(conn, desde, hasta, exp_q, usuario, departamento='', tipo_catastro='', tipo_registro=''):
     cat_cond, cat_p = [], []
     aut_cond, aut_p = [], []
 
@@ -1792,33 +1792,46 @@ def _query_reporte(conn, desde, hasta, exp_q, usuario):
     if usuario:
         cat_cond.append('e.creado_por = %s'); cat_p.append(usuario)
         aut_cond.append('a.creado_por = %s'); aut_p.append(usuario)
+    if departamento:
+        cat_cond.append('c.departamento = %s'); cat_p.append(departamento)
+    if tipo_catastro:
+        cat_cond.append('c.tipo_catastro = %s'); cat_p.append(tipo_catastro)
 
     cat_cond += ['e.activa = 1', '(c.eliminado IS NOT TRUE)']
     aut_cond += ['e.activa = 1', '(a.eliminado IS NOT TRUE)']
     cat_where = ' AND '.join(cat_cond)
     aut_where = ' AND '.join(aut_cond)
 
-    catastros = fetchall(conn, f'''
-        SELECT c.id, c.numero_vr, c.catastro, c.tipo_catastro, c.direccion,
-               c.total_usd, c.propuesta, c.propuesta_moneda, c.monto, c.fecha, c.fecha_registro,
-               c.es_reconsideracion, c.editado_por,
-               e.id AS exp_id, e.expediente, e.caratula, e.creado_por AS exp_creado_por
-        FROM catastros c
-        JOIN expedientes e ON e.id = c.expediente_id
-        WHERE {cat_where}
-        ORDER BY e.id DESC, c.id ASC
-    ''', cat_p)
+    if tipo_registro != 'automotores':
+        catastros = fetchall(conn, f'''
+            SELECT c.id, c.numero_vr, c.catastro, c.tipo_catastro, c.direccion,
+                   c.total_usd, c.propuesta, c.propuesta_moneda, c.monto, c.monto_moneda,
+                   c.fecha, c.fecha_registro, c.es_reconsideracion, c.editado_por,
+                   c.departamento, c.denuncia, c.observaciones,
+                   c.terreno_m2, c.usd_m2_terreno, c.sup_edif_m2, c.usd_m2_edif,
+                   c.total_usd_terreno, c.total_usd_edif,
+                   e.id AS exp_id, e.expediente, e.caratula, e.creado_por AS exp_creado_por
+            FROM catastros c
+            JOIN expedientes e ON e.id = c.expediente_id
+            WHERE {cat_where}
+            ORDER BY e.id DESC, c.id ASC
+        ''', cat_p)
+    else:
+        catastros = []
 
-    automotores = fetchall(conn, f'''
-        SELECT a.id, a.numero_recuento, a.vehiculo, a.anio, a.valor,
-               a.fecha, a.fecha_registro, a.creado_por, a.observaciones,
-               a.expediente_id,
-               e.expediente, e.caratula, e.creado_por AS exp_creado_por
-        FROM automotores a
-        JOIN expedientes e ON e.id = a.expediente_id
-        WHERE {aut_where}
-        ORDER BY a.expediente_id DESC, a.id ASC
-    ''', aut_p)
+    if tipo_registro != 'catastros':
+        automotores = fetchall(conn, f'''
+            SELECT a.id, a.numero_recuento, a.vehiculo, a.anio, a.valor,
+                   a.fecha, a.fecha_registro, a.creado_por, a.observaciones,
+                   a.cotizacion_dolar, a.valor_moneda, a.expediente_id,
+                   e.expediente, e.caratula, e.creado_por AS exp_creado_por
+            FROM automotores a
+            JOIN expedientes e ON e.id = a.expediente_id
+            WHERE {aut_where}
+            ORDER BY a.expediente_id DESC, a.id ASC
+        ''', aut_p)
+    else:
+        automotores = []
 
     exp_dict = {}
     for c in catastros:
@@ -1913,23 +1926,35 @@ def mapa():
 @app.route('/reporte')
 @login_required
 def reporte():
-    desde   = request.args.get('desde',   '').strip()
-    hasta   = request.args.get('hasta',   '').strip()
-    exp_q   = request.args.get('exp_q',   '').strip()
-    usuario = request.args.get('usuario', '').strip()
-    filtrado = bool(desde or hasta or exp_q or usuario)
+    desde          = request.args.get('desde',          '').strip()
+    hasta          = request.args.get('hasta',          '').strip()
+    exp_q          = request.args.get('exp_q',          '').strip()
+    usuario        = request.args.get('usuario',        '').strip()
+    departamento   = request.args.get('departamento',   '').strip()
+    tipo_catastro  = request.args.get('tipo_catastro',  '').strip()
+    tipo_registro  = request.args.get('tipo_registro',  '').strip()
+    filtrado = bool(desde or hasta or exp_q or usuario or departamento or tipo_catastro or tipo_registro)
 
     conn = get_db()
     grupos, total_usd, total_ars, total_pesos = ([], 0, 0, 0)
     if filtrado:
-        grupos, total_usd, total_ars, total_pesos = _query_reporte(conn, desde, hasta, exp_q, usuario)
+        grupos, total_usd, total_ars, total_pesos = _query_reporte(
+            conn, desde, hasta, exp_q, usuario, departamento, tipo_catastro, tipo_registro)
     usuarios_lista = [u['username'] for u in fetchall(conn, 'SELECT username FROM usuarios ORDER BY username')]
+    departamentos_lista = [r['departamento'] for r in fetchall(conn,
+        "SELECT DISTINCT departamento FROM catastros WHERE departamento IS NOT NULL AND departamento <> '' ORDER BY departamento")]
+    tipos_catastro_lista = [r['tipo_catastro'] for r in fetchall(conn,
+        "SELECT DISTINCT tipo_catastro FROM catastros WHERE tipo_catastro IS NOT NULL AND tipo_catastro <> '' ORDER BY tipo_catastro")]
     conn.close()
 
     return render_template('reporte.html',
                            grupos=grupos, total_usd=total_usd, total_ars=total_ars, total_pesos=total_pesos,
                            desde=desde, hasta=hasta, exp_q=exp_q, usuario=usuario,
+                           departamento=departamento, tipo_catastro=tipo_catastro,
+                           tipo_registro=tipo_registro,
                            filtrado=filtrado, usuarios_lista=usuarios_lista,
+                           departamentos_lista=departamentos_lista,
+                           tipos_catastro_lista=tipos_catastro_lista,
                            usuario_actual=session['usuario'])
 
 
@@ -1940,13 +1965,17 @@ def reporte_excel():
     from openpyxl.styles import PatternFill, Font, Alignment, Border, Side
     from openpyxl.utils import get_column_letter
 
-    desde   = request.args.get('desde',   '').strip()
-    hasta   = request.args.get('hasta',   '').strip()
-    exp_q   = request.args.get('exp_q',   '').strip()
-    usuario = request.args.get('usuario', '').strip()
+    desde          = request.args.get('desde',          '').strip()
+    hasta          = request.args.get('hasta',          '').strip()
+    exp_q          = request.args.get('exp_q',          '').strip()
+    usuario        = request.args.get('usuario',        '').strip()
+    departamento   = request.args.get('departamento',   '').strip()
+    tipo_catastro  = request.args.get('tipo_catastro',  '').strip()
+    tipo_registro  = request.args.get('tipo_registro',  '').strip()
 
     conn = get_db()
-    grupos, total_usd, total_ars, total_pesos = _query_reporte(conn, desde, hasta, exp_q, usuario)
+    grupos, total_usd, total_ars, total_pesos = _query_reporte(
+        conn, desde, hasta, exp_q, usuario, departamento, tipo_catastro, tipo_registro)
     conn.close()
 
     wb = Workbook()
@@ -1970,43 +1999,142 @@ def reporte_excel():
     c_ctr       = Alignment(horizontal='center', vertical='center')
     c_rgt       = Alignment(horizontal='right',  vertical='center')
     c_lft       = Alignment(vertical='center')
-    NUM_COLS    = 8
+    # 13 columnas: sin "Tipo Trabajo"
+    NUM_COLS = 13
+    LAST_COL = 'M'
+
+    fill_sec_hdr = PatternFill('solid', fgColor='1E5F8A')
+    font_sec_hdr = Font(bold=True, color='FFFFFF', size=10)
+    fill_flt_lbl = PatternFill('solid', fgColor='DBEAFE')
+    font_flt_lbl = Font(bold=True, size=9, color='1E3A8A')
+    fill_flt_val = PatternFill('solid', fgColor='F8FAFF')
+    font_flt_val = Font(size=9, color='374151')
+    fill_sum_lbl = PatternFill('solid', fgColor='0F3D57')
+    font_sum_lbl = Font(bold=True, color='DBEAFE', size=9)
+    fill_sum_val = PatternFill('solid', fgColor='EFF6FF')
+    font_sum_big = Font(bold=True, size=14, color='0C4566')
+    font_sum_fin = Font(bold=True, size=12, color='FFFFFF')
 
     def merge_write(r, val, fill, font, align=None):
-        ws.merge_cells(f'A{r}:H{r}')
+        ws.merge_cells(f'A{r}:{LAST_COL}{r}')
         cell = ws.cell(row=r, column=1, value=val)
         cell.fill = fill; cell.font = font
         cell.alignment = align or Alignment(vertical='center')
 
-    row = 1
-    merge_write(row, 'REPORTE CONSOLIDADO DE VALUACIONES', fill_exp, Font(bold=True, color='FFFFFF', size=14),
-                Alignment(horizontal='center', vertical='center'))
-    ws.row_dimensions[row].height = 28
-    row += 1
+    def set_border_row(r, cols):
+        for ci in range(1, cols + 1):
+            ws.cell(row=r, column=ci).border = brd
 
-    parts = []
-    if desde or hasta:
-        parts.append(f"Período: {desde or '—'} a {hasta or '—'}")
-    if exp_q:
-        parts.append(f"Expediente: {exp_q}")
-    if usuario:
-        parts.append(f"Usuario: {usuario}")
-    parts.append(f"Generado: {datetime.now().strftime('%d/%m/%Y %H:%M')}")
-    merge_write(row, '  |  '.join(parts), PatternFill('solid', fgColor='F0F5F8'),
-                Font(italic=True, size=9, color='475569'),
+    row = 1
+    merge_write(row, 'CAJA DE ABOGADOS DE SALTA', fill_exp,
+                Font(bold=True, color='FFFFFF', size=11),
                 Alignment(horizontal='center', vertical='center'))
-    ws.row_dimensions[row].height = 16
-    row += 2
+    ws.row_dimensions[row].height = 18; row += 1
+    merge_write(row, 'REPORTE CONSOLIDADO DE VALUACIONES', fill_exp,
+                Font(bold=True, color='FFFFFF', size=15),
+                Alignment(horizontal='center', vertical='center'))
+    ws.row_dimensions[row].height = 28; row += 2
+
+    # ── Sección: Filtros aplicados ──────────────────────────────────────────
+    merge_write(row, '  FILTROS APLICADOS', fill_sec_hdr, font_sec_hdr,
+                Alignment(horizontal='left', vertical='center'))
+    ws.row_dimensions[row].height = 16; row += 1
+
+    TIPO_REG_LABEL = {'catastros': 'Solo catastros', 'automotores': 'Solo automotores'}
+    filter_items = [
+        ('Período:',          f"{desde or 'Sin límite'}  →  {hasta or 'Sin límite'}"),
+        ('N° Expediente:',    exp_q or 'Todos'),
+        ('Usuario:',          usuario or 'Todos los usuarios'),
+        ('Departamento:',     departamento or 'Todos'),
+        ('Tipo de catastro:', tipo_catastro or 'Todos'),
+        ('Mostrar:',          TIPO_REG_LABEL.get(tipo_registro, 'Catastros y automotores')),
+        ('Generado el:',      datetime.now().strftime('%d/%m/%Y   %H:%M')),
+    ]
+    for label, valor in filter_items:
+        ws.merge_cells(f'A{row}:C{row}')
+        c = ws.cell(row=row, column=1, value=label)
+        c.fill = fill_flt_lbl; c.font = font_flt_lbl
+        c.alignment = Alignment(horizontal='right', vertical='center')
+        c.border = brd
+        ws.merge_cells(f'D{row}:{LAST_COL}{row}')
+        c2 = ws.cell(row=row, column=4, value=valor)
+        c2.fill = fill_flt_val; c2.font = font_flt_val
+        c2.alignment = Alignment(horizontal='left', vertical='center', indent=1)
+        c2.border = brd
+        ws.row_dimensions[row].height = 14; row += 1
+
+    row += 1  # espacio
+
+    # ── Sección: Resumen general ────────────────────────────────────────────
+    merge_write(row, '  RESUMEN GENERAL', fill_sec_hdr, font_sec_hdr,
+                Alignment(horizontal='left', vertical='center'))
+    ws.row_dimensions[row].height = 16; row += 1
+
+    total_exp = len(grupos)
+    total_cat = sum(len(g['catastros']) for g in grupos)
+    total_aut = sum(len(g['automotores']) for g in grupos)
+
+    # Fila de etiquetas de conteos  (cols 1-4 | 5-9 | 10-13)
+    spans_count = [(1, 4, 'EXPEDIENTES'), (5, 9, 'CATASTROS'), (10, 13, 'AUTOMOTORES')]
+    for cs, ce, txt in spans_count:
+        ws.merge_cells(f'{get_column_letter(cs)}{row}:{get_column_letter(ce)}{row}')
+        c = ws.cell(row=row, column=cs, value=txt)
+        c.fill = fill_sum_lbl; c.font = font_sum_lbl; c.alignment = c_ctr; c.border = brd
+    ws.row_dimensions[row].height = 16; row += 1
+
+    # Fila de valores de conteos
+    spans_cnt_val = [(1, 4, total_exp), (5, 9, total_cat), (10, 13, total_aut)]
+    for cs, ce, val in spans_cnt_val:
+        ws.merge_cells(f'{get_column_letter(cs)}{row}:{get_column_letter(ce)}{row}')
+        c = ws.cell(row=row, column=cs, value=val)
+        c.fill = fill_sum_val; c.font = font_sum_big; c.alignment = c_ctr; c.border = brd
+    ws.row_dimensions[row].height = 26; row += 1
+
+    # Fila de etiquetas financieras
+    spans_fin_lbl = [
+        (1, 4,  'TOTAL PROPUESTA INMUEBLES U$S'),
+        (5, 9,  'TOTAL PROPUESTA INMUEBLES $'),
+        (10, 13,'TOTAL AUTOMOTORES $'),
+    ]
+    for cs, ce, txt in spans_fin_lbl:
+        ws.merge_cells(f'{get_column_letter(cs)}{row}:{get_column_letter(ce)}{row}')
+        c = ws.cell(row=row, column=cs, value=txt)
+        c.fill = fill_sum_lbl; c.font = font_sum_lbl; c.alignment = c_ctr; c.border = brd
+    ws.row_dimensions[row].height = 16; row += 1
+
+    # Fila de valores financieros
+    spans_fin_val = [
+        (1, 4,  f"U$S {total_usd:,.0f}".replace(',', '.') if total_usd else '—'),
+        (5, 9,  f"$ {total_ars:,.0f}".replace(',', '.') if total_ars else '—'),
+        (10, 13,f"$ {total_pesos:,.0f}".replace(',', '.') if total_pesos else '—'),
+    ]
+    for cs, ce, val in spans_fin_val:
+        ws.merge_cells(f'{get_column_letter(cs)}{row}:{get_column_letter(ce)}{row}')
+        c = ws.cell(row=row, column=cs, value=val)
+        c.fill = fill_exp; c.font = font_sum_fin; c.alignment = c_ctr; c.border = brd
+    ws.row_dimensions[row].height = 28; row += 2
+
+    # ── Sección: Detalle por expediente ─────────────────────────────────────
+    merge_write(row, '  DETALLE POR EXPEDIENTE', fill_sec_hdr, font_sec_hdr,
+                Alignment(horizontal='left', vertical='center'))
+    ws.row_dimensions[row].height = 16; row += 2
+
+    # Cols catastros (13): VR#, Catastro, Tipo, Depto, Dirección,
+    #                      Sup.Terr, Sup.Edif, Total U$S, Propuesta, Monto, FechaReg, Recons, Obs
+    CAT_HDRS = ['VR #', 'Catastro', 'Tipo', 'Departamento', 'Dirección',
+                'Sup. Terr. m²', 'Sup. Edif. m²',
+                'Total U$S', 'Propuesta', 'Monto Decl.', 'Fecha Reg.', 'Recons.', 'Observaciones']
+    AUT_HDRS = ['Rec #', 'Vehículo', 'Año', 'Valor $', 'Cotiz. $',
+                'Creado por', 'Fecha Reg.', 'Observaciones', '', '', '', '', '']
 
     for g in grupos:
         merge_write(row,
                     f"EXPEDIENTE {g['expediente'] or '—'}  —  {g['caratula'] or '—'}  (Creado por: {g['creado_por'] or '—'})",
                     fill_exp, font_exp)
-        ws.row_dimensions[row].height = 22
-        row += 1
+        ws.row_dimensions[row].height = 22; row += 1
 
         if g['catastros']:
-            for ci, h in enumerate(['VR #', 'Catastro', 'Tipo', 'Dirección', 'Total U$S', 'Propuesta U$S', 'Fecha Reg.', 'Reconside.'], 1):
+            for ci, h in enumerate(CAT_HDRS, 1):
                 cell = ws.cell(row=row, column=ci, value=h)
                 cell.fill = fill_cat_h; cell.font = font_cat_h
                 cell.alignment = c_ctr; cell.border = brd
@@ -2014,21 +2142,29 @@ def reporte_excel():
 
             for i, c in enumerate(g['catastros']):
                 alt = fill_alt if i % 2 == 0 else PatternFill('solid', fgColor='FFFFFF')
-                row_vals = [c['numero_vr'], c['catastro'], c['tipo_catastro'], c['direccion'],
-                            c['total_usd'], c['propuesta'],
-                            to_ar(c['fecha_registro']).strftime('%d/%m/%Y %H:%M') if c['fecha_registro'] else None,
-                            'Sí' if c['es_reconsideracion'] else '']
-                row_aligns = ['center','left','center','left','right','right','center','center']
+                row_vals = [
+                    c['numero_vr'], c['catastro'], c['tipo_catastro'],
+                    c.get('departamento') or '',
+                    c['direccion'],
+                    c.get('terreno_m2'), c.get('sup_edif_m2'),
+                    c['total_usd'], c['propuesta'], c.get('monto'),
+                    to_ar(c['fecha_registro']).strftime('%d/%m/%Y %H:%M') if c['fecha_registro'] else None,
+                    'Sí' if c['es_reconsideracion'] else '',
+                    (c.get('observaciones') or '')[:80],
+                ]
+                row_aligns = ['center','left','center','left','left',
+                              'right','right','right','right','right','center','center','left']
+                num_fmt = {6: '#,##0.0', 7: '#,##0.0', 8: '#,##0.00', 9: '#,##0.00', 10: '#,##0.00'}
                 for ci, (val, al) in enumerate(zip(row_vals, row_aligns), 1):
                     cell = ws.cell(row=row, column=ci, value=val)
                     cell.fill = alt; cell.border = brd; cell.font = Font(size=9)
                     cell.alignment = c_ctr if al == 'center' else (c_rgt if al == 'right' else c_lft)
-                    if ci in (5, 6) and val is not None:
-                        cell.number_format = '#,##0.00'
+                    if ci in num_fmt and val is not None:
+                        cell.number_format = num_fmt[ci]
                 row += 1
 
         if g['automotores']:
-            for ci, h in enumerate(['Rec #', 'Vehículo', 'Año', 'Valor $', 'Creado por', 'Fecha Reg.', '', ''], 1):
+            for ci, h in enumerate(AUT_HDRS, 1):
                 cell = ws.cell(row=row, column=ci, value=h)
                 cell.fill = fill_aut_h; cell.font = font_aut_h
                 cell.alignment = c_ctr; cell.border = brd
@@ -2036,53 +2172,44 @@ def reporte_excel():
 
             for i, a in enumerate(g['automotores']):
                 alt = fill_alt_g if i % 2 == 0 else PatternFill('solid', fgColor='FFFFFF')
-                row_vals = [a['numero_recuento'], a['vehiculo'], a['anio'], a['valor'],
-                            a['creado_por'],
-                            to_ar(a['fecha_registro']).strftime('%d/%m/%Y %H:%M') if a['fecha_registro'] else None,
-                            '', '']
-                row_aligns = ['center','left','center','right','center','center','','']
+                row_vals = [
+                    a['numero_recuento'], a['vehiculo'], a['anio'], a['valor'],
+                    a.get('cotizacion_dolar'),
+                    a['creado_por'],
+                    to_ar(a['fecha_registro']).strftime('%d/%m/%Y %H:%M') if a['fecha_registro'] else None,
+                    (a.get('observaciones') or '')[:80],
+                    '', '', '', '', '',
+                ]
+                row_aligns = ['center','left','center','right','right','center','center','left',
+                              '','','','','']
                 for ci, (val, al) in enumerate(zip(row_vals, row_aligns), 1):
                     cell = ws.cell(row=row, column=ci, value=val)
                     cell.fill = alt; cell.border = brd; cell.font = Font(size=9)
                     cell.alignment = c_ctr if al == 'center' else (c_rgt if al == 'right' else c_lft)
                     if ci == 4 and val is not None:
                         cell.number_format = '#,##0'
+                    if ci == 5 and val is not None:
+                        cell.number_format = '#,##0.00'
                 row += 1
 
-        ws.merge_cells(f'A{row}:D{row}')
-        ws.cell(row=row, column=1, value='SUBTOTAL').fill = fill_sub
+        # Subtotal por expediente
+        ws.merge_cells(f'A{row}:E{row}')
+        ws.cell(row=row, column=1, value='SUBTOTAL EXPEDIENTE').fill = fill_sub
         ws.cell(row=row, column=1).font = font_sub
         ws.cell(row=row, column=1).alignment = Alignment(horizontal='right', vertical='center')
         sub_vals = [
-            (f"U$S {g['subtotal_usd']:,.0f}".replace(',', '.') if g['subtotal_usd'] else '—', '#,##0.00'),
-            (f"$ {g['subtotal_ars']:,.0f}".replace(',', '.') if g['subtotal_ars'] else '—', '#,##0.00'),
-            (f"$ {g['subtotal_pesos']:,.0f}".replace(',', '.') if g['subtotal_pesos'] else '—', '#,##0'),
+            (f"U$S {g['subtotal_usd']:,.0f}".replace(',', '.') if g['subtotal_usd'] else '—',),
+            (f"$ {g['subtotal_ars']:,.0f}".replace(',', '.') if g['subtotal_ars'] else '—',),
+            (f"$ {g['subtotal_pesos']:,.0f}".replace(',', '.') if g['subtotal_pesos'] else '—',),
         ]
-        for ci, (val, fmt) in enumerate(sub_vals, 5):
+        for ci, (val,) in enumerate(sub_vals, 8):
             cell = ws.cell(row=row, column=ci, value=val)
             cell.fill = fill_sub; cell.font = font_sub
             cell.alignment = c_rgt; cell.border = brd
-        ws.row_dimensions[row].height = 18
-        row += 2
+        ws.row_dimensions[row].height = 18; row += 2
 
-    # Fila de totales generales
-    row += 1
-    merge_write(row, 'TOTAL GENERAL', fill_total, font_total, Alignment(horizontal='center', vertical='center'))
-    ws.row_dimensions[row].height = 22
-    row += 1
-    total_vals = [
-        (f"U$S {total_usd:,.0f}".replace(',', '.') if total_usd else '—', 'Inmuebles (U$S)'),
-        (f"$ {total_ars:,.0f}".replace(',', '.') if total_ars else '—', 'Inmuebles ($)'),
-        (f"$ {total_pesos:,.0f}".replace(',', '.') if total_pesos else '—', 'Automotores ($)'),
-    ]
-    for ci, (val, label) in enumerate(total_vals, 3):
-        ws.cell(row=row, column=ci, value=label).font = Font(bold=True, size=9, color='475569')
-        ws.cell(row=row, column=ci).alignment = c_ctr
-        ws.cell(row=row+1, column=ci, value=val).font = Font(bold=True, size=11, color='0C4566')
-        ws.cell(row=row+1, column=ci).alignment = c_ctr
-    ws.row_dimensions[row+1].height = 20
-
-    for ci, w in enumerate([8, 20, 14, 32, 16, 16, 18, 10], 1):
+    # VR#, Catastro, Tipo, Depto, Dirección, SupTerr, SupEdif, TotalU$S, Propuesta, Monto, FechaReg, Recons, Obs
+    for ci, w in enumerate([7, 18, 12, 14, 26, 10, 10, 13, 13, 13, 16, 8, 30], 1):
         ws.column_dimensions[get_column_letter(ci)].width = w
 
     buf = BytesIO()
@@ -2103,13 +2230,17 @@ def reporte_pdf():
     from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
     from reportlab.lib.enums import TA_CENTER, TA_RIGHT
 
-    desde   = request.args.get('desde',   '').strip()
-    hasta   = request.args.get('hasta',   '').strip()
-    exp_q   = request.args.get('exp_q',   '').strip()
-    usuario = request.args.get('usuario', '').strip()
+    desde          = request.args.get('desde',          '').strip()
+    hasta          = request.args.get('hasta',          '').strip()
+    exp_q          = request.args.get('exp_q',          '').strip()
+    usuario        = request.args.get('usuario',        '').strip()
+    departamento   = request.args.get('departamento',   '').strip()
+    tipo_catastro  = request.args.get('tipo_catastro',  '').strip()
+    tipo_registro  = request.args.get('tipo_registro',  '').strip()
 
     conn = get_db()
-    grupos, total_usd, total_ars, total_pesos = _query_reporte(conn, desde, hasta, exp_q, usuario)
+    grupos, total_usd, total_ars, total_pesos = _query_reporte(
+        conn, desde, hasta, exp_q, usuario, departamento, tipo_catastro, tipo_registro)
     conn.close()
 
     buf = BytesIO()
@@ -2161,22 +2292,98 @@ def reporte_pdf():
         ]))
         return t
 
-    story = []
-    story.append(Paragraph('REPORTE CONSOLIDADO DE VALUACIONES', s_title))
+    s_inst = ParagraphStyle('inst', parent=styles['Normal'], fontSize=9,
+                             textColor=colors.HexColor('#64748B'), alignment=TA_CENTER, spaceAfter=2)
 
-    parts = []
-    if desde or hasta:
-        parts.append(f"Período: {desde or '—'} → {hasta or '—'}")
-    if exp_q:
-        parts.append(f"Expediente: {exp_q}")
-    if usuario:
-        parts.append(f"Usuario: {usuario}")
-    parts.append(f"Generado: {datetime.now().strftime('%d/%m/%Y %H:%M')}")
-    story.append(Paragraph('  |  '.join(parts), s_sub))
+    story = []
+    story.append(Paragraph('CAJA DE ABOGADOS DE SALTA', s_inst))
+    story.append(Paragraph('REPORTE CONSOLIDADO DE VALUACIONES', s_title))
+    story.append(Spacer(1, 0.3*cm))
+
+    # ── Tabla de filtros aplicados ────────────────────────────────────────
+    _tr_label = {'catastros': 'Solo catastros', 'automotores': 'Solo automotores'}
+    filter_data = [
+        ['Período:',          f"{desde or 'Sin límite'}  →  {hasta or 'Sin límite'}"],
+        ['N° Expediente:',    exp_q or 'Todos'],
+        ['Usuario:',          usuario or 'Todos los usuarios'],
+        ['Departamento:',     departamento or 'Todos'],
+        ['Tipo de catastro:', tipo_catastro or 'Todos'],
+        ['Mostrar:',          _tr_label.get(tipo_registro, 'Catastros y automotores')],
+        ['Generado el:',      datetime.now().strftime('%d/%m/%Y   %H:%M')],
+    ]
+    flt_t = Table(filter_data, colWidths=[3.5*cm, 23.2*cm])
+    flt_t.setStyle(TableStyle([
+        ('BACKGROUND',    (0, 0), (0, -1), colors.HexColor('#DBEAFE')),
+        ('BACKGROUND',    (1, 0), (1, -1), colors.HexColor('#F8FAFF')),
+        ('TEXTCOLOR',     (0, 0), (0, -1), colors.HexColor('#1E3A8A')),
+        ('FONTNAME',      (0, 0), (0, -1), 'Helvetica-Bold'),
+        ('FONTNAME',      (1, 0), (1, -1), 'Helvetica'),
+        ('FONTSIZE',      (0, 0), (-1, -1), 8.5),
+        ('GRID',          (0, 0), (-1, -1), 0.4, gray_ln),
+        ('ALIGN',         (0, 0), (0, -1), 'RIGHT'),
+        ('ALIGN',         (1, 0), (1, -1), 'LEFT'),
+        ('VALIGN',        (0, 0), (-1, -1), 'MIDDLE'),
+        ('TOPPADDING',    (0, 0), (-1, -1), 4),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+        ('LEFTPADDING',   (0, 0), (0, -1), 8),
+        ('LEFTPADDING',   (1, 0), (1, -1), 8),
+    ]))
+    story.append(flt_t)
+    story.append(Spacer(1, 0.4*cm))
 
     if not grupos:
         story.append(Paragraph('No se encontraron registros para los filtros seleccionados.', styles['Normal']))
     else:
+        # ── Tabla resumen general ─────────────────────────────────────────
+        total_exp = len(grupos)
+        total_cat = sum(len(g['catastros']) for g in grupos)
+        total_aut = sum(len(g['automotores']) for g in grupos)
+        cw3 = 26.7 * cm / 3
+
+        sum_data = [
+            ['EXPEDIENTES', 'CATASTROS', 'AUTOMOTORES'],
+            [str(total_exp), str(total_cat), str(total_aut)],
+            ['Total propuesta inmuebles (U$S)', 'Total propuesta inmuebles ($)', 'Total automotores ($)'],
+            [
+                f"U$S {_ar(total_usd)}" if total_usd else '—',
+                f"$ {_ar(total_ars)}" if total_ars else '—',
+                f"$ {_ar_p(total_pesos)}" if total_pesos else '—',
+            ],
+        ]
+        sum_t = Table(sum_data, colWidths=[cw3] * 3)
+        sum_t.setStyle(TableStyle([
+            ('BACKGROUND',    (0, 0), (-1, 0),  brand),
+            ('BACKGROUND',    (0, 1), (-1, 1),  colors.HexColor('#EFF6FF')),
+            ('BACKGROUND',    (0, 2), (-1, 2),  colors.HexColor('#0F3D57')),
+            ('BACKGROUND',    (0, 3), (-1, 3),  brand),
+            ('TEXTCOLOR',     (0, 0), (-1, 0),  colors.HexColor('#DBEAFE')),
+            ('TEXTCOLOR',     (0, 1), (-1, 1),  brand),
+            ('TEXTCOLOR',     (0, 2), (-1, 2),  colors.HexColor('#DBEAFE')),
+            ('TEXTCOLOR',     (0, 3), (-1, 3),  colors.white),
+            ('FONTNAME',      (0, 0), (-1, 0),  'Helvetica-Bold'),
+            ('FONTNAME',      (0, 1), (-1, 1),  'Helvetica-Bold'),
+            ('FONTNAME',      (0, 2), (-1, 2),  'Helvetica-Bold'),
+            ('FONTNAME',      (0, 3), (-1, 3),  'Helvetica-Bold'),
+            ('FONTSIZE',      (0, 0), (-1, 0),  8.5),
+            ('FONTSIZE',      (0, 1), (-1, 1),  20),
+            ('FONTSIZE',      (0, 2), (-1, 2),  8),
+            ('FONTSIZE',      (0, 3), (-1, 3),  13),
+            ('ALIGN',         (0, 0), (-1, -1), 'CENTER'),
+            ('VALIGN',        (0, 0), (-1, -1), 'MIDDLE'),
+            ('GRID',          (0, 0), (-1, -1), 0.4, gray_ln),
+            ('TOPPADDING',    (0, 0), (-1, 0),  4),
+            ('BOTTOMPADDING', (0, 0), (-1, 0),  4),
+            ('TOPPADDING',    (0, 1), (-1, 1),  8),
+            ('BOTTOMPADDING', (0, 1), (-1, 1),  8),
+            ('TOPPADDING',    (0, 2), (-1, 2),  4),
+            ('BOTTOMPADDING', (0, 2), (-1, 2),  4),
+            ('TOPPADDING',    (0, 3), (-1, 3),  8),
+            ('BOTTOMPADDING', (0, 3), (-1, 3),  8),
+        ]))
+        story.append(sum_t)
+        story.append(Spacer(1, 0.5*cm))
+
+        # ── Detalle por expediente ────────────────────────────────────────
         for g in grupos:
             story.append(Paragraph(
                 f"EXPEDIENTE {g['expediente'] or '—'}  —  {g['caratula'] or '—'}  "
@@ -2189,19 +2396,29 @@ def reporte_pdf():
                     rec = ' (R)' if c['es_reconsideracion'] else ''
                     moneda = c.get('propuesta_moneda') or 'USD'
                     prop_str = (f"U$S {_ar(c['propuesta'])}" if moneda == 'USD' else f"$ {_ar(c['propuesta'])}") if c['propuesta'] else '—'
+                    monto_m = c.get('monto_moneda') or 'ARS'
+                    monto_str = (f"U$S {_ar(c['monto'])}" if monto_m == 'USD' else f"$ {_ar(c['monto'])}") if c.get('monto') else '—'
+                    sup_terr = f"{_ar(c.get('terreno_m2'))} m²" if c.get('terreno_m2') else '—'
+                    sup_edif = f"{_ar(c.get('sup_edif_m2'))} m²" if c.get('sup_edif_m2') else '—'
                     cat_rows.append([
                         str(c['numero_vr'] or '—') + rec,
                         (c['catastro'] or '—'),
                         (c['tipo_catastro'] or '—'),
-                        (c['direccion'] or '—')[:50],
+                        (c.get('departamento') or '—'),
+                        (c['direccion'] or '—')[:40],
+                        sup_terr,
+                        sup_edif,
                         f"U$S {_ar(c['total_usd'])}",
                         prop_str,
+                        monto_str,
                         to_ar(c['fecha_registro']).strftime('%d/%m/%y') if c['fecha_registro'] else '—',
                     ])
                 story.append(mk_table(
-                    ['VR #', 'Catastro', 'Tipo', 'Dirección', 'Total U$S', 'Propuesta', 'Fecha Reg.'],
+                    ['VR #', 'Catastro', 'Tipo', 'Depto.', 'Dirección',
+                     'Sup.Terr.', 'Sup.Edif.', 'Total U$S', 'Propuesta', 'Monto Decl.', 'Fecha Reg.'],
                     cat_rows,
-                    [1.8*cm, 3.5*cm, 2.5*cm, 8.5*cm, 3*cm, 3.2*cm, 2.5*cm],
+                    [1.4*cm, 2.5*cm, 1.8*cm, 2.0*cm, 5.5*cm,
+                     1.7*cm, 1.7*cm, 2.5*cm, 2.5*cm, 2.5*cm, 2.6*cm],
                     brand2
                 ))
 
@@ -2210,19 +2427,21 @@ def reporte_pdf():
                 story.append(Paragraph('Automotores', s_sec))
                 aut_rows = []
                 for a in g['automotores']:
+                    cotiz = f"$ {_ar(a.get('cotizacion_dolar'))}" if a.get('cotizacion_dolar') else '—'
                     aut_rows.append([
                         str(a['numero_recuento'] or '—'),
-                        (a['vehiculo'] or '—')[:45],
+                        (a['vehiculo'] or '—')[:40],
                         str(a['anio'] or '—'),
                         f"$ {_ar_p(a['valor'])}",
+                        cotiz,
                         a['creado_por'] or '—',
                         to_ar(a['fecha_registro']).strftime('%d/%m/%y') if a['fecha_registro'] else '—',
-                        '',
+                        (a.get('observaciones') or '')[:40],
                     ])
                 aut_t = mk_table(
-                    ['Rec #', 'Vehículo', 'Año', 'Valor $', 'Creado por', 'Fecha Reg.', ''],
+                    ['Rec #', 'Vehículo', 'Año', 'Valor $', 'Cotiz. $', 'Creado por', 'Fecha Reg.', 'Observaciones'],
                     aut_rows,
-                    [1.8*cm, 9*cm, 2*cm, 3.5*cm, 2.5*cm, 2.5*cm, 3.7*cm],
+                    [1.4*cm, 7.2*cm, 1.8*cm, 3.0*cm, 2.5*cm, 2.5*cm, 2.0*cm, 6.3*cm],
                     grn
                 )
                 aut_t.setStyle(TableStyle([
@@ -2239,17 +2458,6 @@ def reporte_pdf():
                 sub_parts.append(f"Automotores: <b>$ {_ar_p(g['subtotal_pesos'])}</b>")
             story.append(Paragraph('Subtotal: ' + ('  |  '.join(sub_parts) if sub_parts else '—'), s_stot))
             story.append(HRFlowable(width='100%', thickness=0.5, color=gray_ln, spaceAfter=2))
-
-        # Totales generales
-        tot_parts = []
-        if total_usd:
-            tot_parts.append(f"Inmuebles U$S: <b>U$S {_ar(total_usd)}</b>")
-        if total_ars:
-            tot_parts.append(f"Inmuebles $: <b>$ {_ar(total_ars)}</b>")
-        if total_pesos:
-            tot_parts.append(f"Automotores: <b>$ {_ar_p(total_pesos)}</b>")
-        story.append(Spacer(1, 0.4*cm))
-        story.append(Paragraph('TOTAL GENERAL: ' + ('  |  '.join(tot_parts) if tot_parts else '—'), s_tot))
 
     doc.build(story)
     buf.seek(0)
