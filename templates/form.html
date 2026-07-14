@@ -809,7 +809,15 @@
 
         function parsearMoneda(val) {
             if (!val) return 0;
-            return parseFloat(String(val).replace(/\./g, '').replace(',', '.')) || 0;
+            var s = String(val).trim();
+            if (s.indexOf(',') !== -1) {
+                // Formato argentino: puntos=miles, coma=decimal
+                return parseFloat(s.replace(/\./g, '').replace(',', '.')) || 0;
+            }
+            // Sin coma: si hay más de un punto son miles; si hay uno es decimal
+            var dotCount = (s.match(/\./g) || []).length;
+            if (dotCount > 1) return parseFloat(s.replace(/\./g, '')) || 0;
+            return parseFloat(s) || 0;
         }
 
         function formatearMoneda(num) {
