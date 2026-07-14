@@ -12,11 +12,9 @@
         {% endif %} — Sistema de Valuaciones
     </title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-    {% if viendo or editando %}
     <link rel="stylesheet" href="{{ url_for('static', filename='jsuites.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='jspreadsheet.css') }}">
     <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons">
-    {% endif %}
 </head>
 
 <body>
@@ -271,12 +269,7 @@
                                 <td class="calc-cell total-row" id="calc-total">0</td>
                             </tr>
                         </tbody>
-                        <tfoot>
-                            <tr class="row-propuesta">
-                                <td class="row-header" colspan="5" style="text-align:right; padding-right:16px;">+ 10%</td>
-                                <td class="calc-cell propuesta-cell" id="calc-propuesta">U$S 0</td>
-                            </tr>
-                        </tfoot>
+                        <tfoot></tfoot>
                     </table>
 
                     <!-- Tipo + Monto + Propuesta -->
@@ -306,9 +299,10 @@
                                 <input type="hidden" name="monto_moneda" value="{{ datos.monto_moneda if datos and datos.monto_moneda else 'ARS' }}">
                                 {% endif %}
                             </label>
-                            <input type="number" name="monto" id="monto_input" step="0.01" placeholder="0.00"
+                            <input type="text" name="monto" id="monto_input" placeholder="0,00"
                                 value="{{ datos.monto if datos else '' }}" {% if readonly %}readonly{% endif %}
-                                oninput="actualizarEquivalentes()">
+                                oninput="actualizarEquivalentes()"
+                                onfocus="enfocarMoneda(this)" onblur="desfocarMoneda(this)">
                             <div id="monto_equiv" style="font-size:0.78rem; color:#059669; margin-top:3px; font-weight:600;"></div>
                         </div>
                         <div class="form-group">
@@ -327,10 +321,11 @@
                                 <input type="hidden" name="propuesta_moneda" value="{{ datos.propuesta_moneda if datos and datos.propuesta_moneda else 'USD' }}">
                                 {% endif %}
                             </label>
-                            <input type="number" name="propuesta" id="propuesta_editable" step="0.01"
-                                placeholder="0.00" value="{{ datos.propuesta if datos else '' }}"
+                            <input type="text" name="propuesta" id="propuesta_editable"
+                                placeholder="0,00" value="{{ datos.propuesta if datos else '' }}"
                                 class="propuesta-input" {% if readonly %}readonly{% endif %}
-                                oninput="actualizarEquivalentes()">
+                                oninput="actualizarEquivalentes()"
+                                onfocus="enfocarMoneda(this)" onblur="desfocarMoneda(this)">
                             <div id="propuesta_equiv" style="font-size:0.78rem; color:#1e3a8a; margin-top:3px; font-weight:600;"></div>
                         </div>
                     </div>
@@ -494,6 +489,9 @@
                             </button>
                         {% endif %}
                     </div>
+                    {% if not viendo and not editando and not reconsiderando %}
+                    <input type="hidden" name="hoja_datos" id="hoja_datos_input" value="">
+                    {% endif %}
                 </form>
 
                 <!-- Archivos adjuntos (solo en ver/reconsiderar) -->
@@ -532,8 +530,7 @@
         </div>
     </div>
 
-    {% if viendo or editando %}
-    {% set cat_id = viendo.id if viendo else editando.id %}
+    {% set cat_id = viendo.id if viendo else (editando.id if editando else (reconsiderando.id if reconsiderando else none)) %}
     <div class="container" style="margin-top:18px; max-width:100%;">
         <div class="card">
             <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;cursor:pointer;" onclick="toggleHoja()">
@@ -545,8 +542,14 @@
                 <div id="hoja-spreadsheet"></div>
                 </div>
                 <div style="margin-top:10px;display:flex;gap:10px;align-items:center;">
-                    <button class="btn btn-primary" onclick="guardarHoja()">Guardar hoja</button>
-                    <span id="hoja-status" style="font-size:0.85rem;color:#64748b;"></span>
+                    {% if not viendo %}
+                    <button type="button" class="btn btn-primary" onclick="guardarHoja()">Guardar hoja</button>
+                    {% endif %}
+                    <span id="hoja-status" style="font-size:0.85rem;color:#64748b;">
+                        {% if not viendo and not editando and not reconsiderando %}
+                        (se guardará junto con el formulario)
+                        {% endif %}
+                    </span>
                 </div>
             </div>
         </div>
@@ -558,6 +561,7 @@
     var hojaInstance = null;
     var hojaVisible = true;
     var hojaSeleccion = null;
+    var catId = {{ cat_id | tojson }};
 
     function toggleHoja() {
         var sec = document.getElementById('hoja-section');
@@ -633,30 +637,58 @@
         });
     }
 
+    function serializarHoja() {
+        if (!hojaInstance) return null;
+        return { data: hojaInstance.getData(), columns: hojaInstance.options.columns };
+    }
+
     function guardarHoja() {
         var status = document.getElementById('hoja-status');
         if (!hojaInstance) return;
-        var datos = {
-            data: hojaInstance.getData(),
-            columns: hojaInstance.options.columns,
-        };
-        status.textContent = 'Guardando...';
-        fetch('/hoja_calculo/{{ cat_id }}', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ datos: datos })
-        })
-        .then(function(r) { return r.json(); })
-        .then(function() { status.textContent = 'Guardado ✓'; setTimeout(function(){ status.textContent=''; }, 3000); })
-        .catch(function() { status.textContent = 'Error al guardar'; });
+        var datos = serializarHoja();
+        if (catId) {
+            status.textContent = 'Guardando...';
+            fetch('/hoja_calculo/' + catId, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ datos: datos })
+            })
+            .then(function(r) { return r.json(); })
+            .then(function() { status.textContent = 'Guardado ✓'; setTimeout(function(){ status.textContent=''; }, 3000); })
+            .catch(function() { status.textContent = 'Error al guardar'; });
+        } else {
+            var input = document.getElementById('hoja_datos_input');
+            if (input) input.value = JSON.stringify(datos);
+            status.textContent = 'Hoja lista ✓';
+            setTimeout(function(){ status.textContent = '(se guardará junto con el formulario)'; }, 2000);
+        }
     }
 
-    fetch('/hoja_calculo/{{ cat_id }}')
-        .then(function(r) { return r.json(); })
-        .then(function(res) { iniciarHoja(res.datos); })
-        .catch(function() { iniciarHoja({ data: [], columns: [] }); });
+    if (catId) {
+        fetch('/hoja_calculo/' + catId)
+            .then(function(r) { return r.json(); })
+            .then(function(res) { iniciarHoja(res.datos); })
+            .catch(function() { iniciarHoja({ data: [], columns: [] }); });
+    } else {
+        iniciarHoja({
+            data: [],
+            columns: [
+                {title:'A',width:130},{title:'B',width:130},{title:'C',width:130},
+                {title:'D',width:130},{title:'E',width:130},{title:'F',width:130},
+                {title:'G',width:130},{title:'H',width:130},{title:'I',width:130},
+                {title:'J',width:130}
+            ]
+        });
+        var formValuacion = document.getElementById('form-valuacion');
+        if (formValuacion) {
+            formValuacion.addEventListener('submit', function() {
+                var datos = serializarHoja();
+                var input = document.getElementById('hoja_datos_input');
+                if (input && datos) input.value = JSON.stringify(datos);
+            });
+        }
+    }
     </script>
-    {% endif %}
 
     <!-- Modal de imagen -->
     <div id="img-modal" class="img-modal-overlay" style="display:none;" onclick="cerrarImagen()">
@@ -743,14 +775,10 @@
                 document.getElementById('calc-cerros').textContent     = '—';
             }
 
-            var total     = totalTerrenoEquiv + totalEdif;
-            var propuesta = total * 1.10;
+            var total = totalTerrenoEquiv + totalEdif;
 
-            document.getElementById('calc-edif').textContent      = totalEdif.toLocaleString('es-AR', { maximumFractionDigits: 0 });
-            document.getElementById('calc-total').textContent     = total.toLocaleString('es-AR', { maximumFractionDigits: 0 });
-            document.getElementById('calc-propuesta').textContent = 'U$S ' + propuesta.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-
-            document.getElementById('propuesta_editable').value = propuesta.toFixed(2);
+            document.getElementById('calc-edif').textContent  = totalEdif.toLocaleString('es-AR', { maximumFractionDigits: 0 });
+            document.getElementById('calc-total').textContent = total.toLocaleString('es-AR', { maximumFractionDigits: 0 });
         }
 
         function calcularUrb() {
@@ -779,6 +807,26 @@
             document.getElementById('emprendimiento').value = emprendimiento.toFixed(2);
         }
 
+        function parsearMoneda(val) {
+            if (!val) return 0;
+            return parseFloat(String(val).replace(/\./g, '').replace(',', '.')) || 0;
+        }
+
+        function formatearMoneda(num) {
+            if (!num && num !== 0) return '';
+            return num.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        }
+
+        function enfocarMoneda(el) {
+            var raw = parsearMoneda(el.value);
+            el.value = raw ? String(raw) : '';
+        }
+
+        function desfocarMoneda(el) {
+            var raw = parsearMoneda(el.value);
+            el.value = raw ? formatearMoneda(raw) : '';
+        }
+
         function actualizarEquivalentes() {
             var cotizacion  = parseFloat(document.getElementById('valor_dolar') ? document.getElementById('valor_dolar').value : 0) || 0;
             var propuestaEl = document.getElementById('propuesta_editable');
@@ -790,7 +838,7 @@
 
             if (!propuestaEl || !propEquiv) return;
 
-            var propVal = parseFloat(propuestaEl.value) || 0;
+            var propVal = parsearMoneda(propuestaEl.value);
             var mProp   = monedaProp ? monedaProp.value : 'USD';
 
             if (cotizacion > 0 && propVal > 0) {
@@ -806,7 +854,7 @@
             }
 
             if (!montoEl || !montoEquiv) return;
-            var montoVal = parseFloat(montoEl.value) || 0;
+            var montoVal = parsearMoneda(montoEl.value);
             var mMonto   = monedaMonto ? monedaMonto.value : 'ARS';
 
             if (cotizacion > 0 && montoVal > 0) {
@@ -831,15 +879,29 @@
 
             aplicarModoTipoCatastro();
 
-            if ((editandoEl || viendoEl) && propuestaGuardada) {
-                propuestaInput.value = propuestaGuardada;
-            }
+            // Formatear propuesta y monto con separadores de miles al cargar
+            var montoInput = document.getElementById('monto_input');
+            if (propuestaInput && propuestaInput.value) desfocarMoneda(propuestaInput);
+            if (montoInput    && montoInput.value)     desfocarMoneda(montoInput);
 
             if (viendoEl) {
                 var form = document.getElementById('form-valuacion');
                 form.querySelectorAll('input:not([readonly]), select, textarea').forEach(function(el) {
                     el.disabled = true;
                 });
+            }
+
+            // Antes de enviar, convertir valores formateados a número plano
+            var formValuacion = document.getElementById('form-valuacion');
+            if (formValuacion) {
+                formValuacion.addEventListener('submit', function() {
+                    [propuestaInput, montoInput].forEach(function(el) {
+                        if (el && el.value) {
+                            var raw = parsearMoneda(el.value);
+                            el.value = raw ? String(raw) : '';
+                        }
+                    });
+                }, true);
             }
 
             // Mostrar equivalentes al cargar si hay datos guardados

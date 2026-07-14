@@ -402,10 +402,15 @@ def extraer_coordenadas(url):
 
 
 def parse_float(val):
-    try:
-        return float(val) if val else 0
-    except (ValueError, TypeError):
+    if not val:
         return 0
+    try:
+        return float(val)
+    except (ValueError, TypeError):
+        try:
+            return float(str(val).replace('.', '').replace(',', '.'))
+        except (ValueError, TypeError):
+            return 0
 
 
 def parse_int(val):
@@ -461,7 +466,7 @@ def _calcular_catastro(data):
 
     total_usd_edif = sup_edif_m2 * usd_m2_edif
     total_usd      = total_usd_terreno + total_usd_edif
-    propuesta      = parse_float(data.get('propuesta')) or total_usd * 1.10
+    propuesta      = parse_float(data.get('propuesta'))
     propuesta_moneda = data.get('propuesta_moneda', 'USD') or 'USD'
     monto_moneda     = data.get('monto_moneda', 'ARS') or 'ARS'
 
@@ -879,6 +884,21 @@ def guardar_catastro(exp_id):
         c['porcentaje_emprendimiento'], c['costo_usd_m2_emprendimiento'], c['emprendimiento'],
         c['observaciones'], c['latitud'], c['longitud'],
     ))
+
+    hoja_datos = request.form.get('hoja_datos')
+    if hoja_datos:
+        try:
+            json.loads(hoja_datos)
+            execute(conn, '''
+                INSERT INTO hojas_calculo (catastro_id, datos, actualizado_por)
+                VALUES (%s, %s, %s)
+                ON CONFLICT (catastro_id) DO UPDATE SET
+                    datos               = EXCLUDED.datos,
+                    actualizado_por     = EXCLUDED.actualizado_por,
+                    fecha_actualizacion = CURRENT_TIMESTAMP
+            ''', (cat_id, hoja_datos, usuario_actual))
+        except Exception as e:
+            print(f'[Hoja] Error al guardar hoja en creación: {e}')
 
     for file in request.files.getlist('archivos'):
         if not file or not file.filename:
