@@ -269,7 +269,12 @@
                                 <td class="calc-cell total-row" id="calc-total">0</td>
                             </tr>
                         </tbody>
-                        <tfoot></tfoot>
+                        <tfoot>
+                            <tr class="row-propuesta">
+                                <td class="row-header" colspan="5" style="text-align:right; padding-right:16px;">+ 10%</td>
+                                <td class="calc-cell propuesta-cell" id="calc-propuesta">U$S 0</td>
+                            </tr>
+                        </tfoot>
                     </table>
 
                     <!-- Tipo + Monto + Propuesta -->
@@ -775,10 +780,12 @@
                 document.getElementById('calc-cerros').textContent     = '—';
             }
 
-            var total = totalTerrenoEquiv + totalEdif;
+            var total     = totalTerrenoEquiv + totalEdif;
+            var propuesta = total * 1.10;
 
-            document.getElementById('calc-edif').textContent  = totalEdif.toLocaleString('es-AR', { maximumFractionDigits: 0 });
-            document.getElementById('calc-total').textContent = total.toLocaleString('es-AR', { maximumFractionDigits: 0 });
+            document.getElementById('calc-edif').textContent      = totalEdif.toLocaleString('es-AR', { maximumFractionDigits: 0 });
+            document.getElementById('calc-total').textContent     = total.toLocaleString('es-AR', { maximumFractionDigits: 0 });
+            document.getElementById('calc-propuesta').textContent = 'U$S ' + propuesta.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
         }
 
         function calcularUrb() {
