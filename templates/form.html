@@ -301,7 +301,7 @@
                                 <span style="margin-left:6px; font-size:0.78rem; font-weight:600; color:#374151;">
                                     {{ datos.monto_moneda if datos and datos.monto_moneda else 'ARS' }}
                                 </span>
-                                <input type="hidden" name="monto_moneda" value="{{ datos.monto_moneda if datos and datos.monto_moneda else 'ARS' }}">
+                                <input type="hidden" id="monto_moneda" name="monto_moneda" value="{{ datos.monto_moneda if datos and datos.monto_moneda else 'ARS' }}">
                                 {% endif %}
                             </label>
                             <input type="text" name="monto" id="monto_input" placeholder="0,00"
@@ -323,7 +323,7 @@
                                 <span style="margin-left:6px; font-size:0.78rem; font-weight:600; color:#374151;">
                                     {{ datos.propuesta_moneda if datos and datos.propuesta_moneda else 'USD' }}
                                 </span>
-                                <input type="hidden" name="propuesta_moneda" value="{{ datos.propuesta_moneda if datos and datos.propuesta_moneda else 'USD' }}">
+                                <input type="hidden" id="propuesta_moneda" name="propuesta_moneda" value="{{ datos.propuesta_moneda if datos and datos.propuesta_moneda else 'USD' }}">
                                 {% endif %}
                             </label>
                             <input type="text" name="propuesta" id="propuesta_editable"
